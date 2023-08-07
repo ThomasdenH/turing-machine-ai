@@ -37,6 +37,10 @@ impl Assignment {
 }
 
 impl Game {
+    pub fn verifier_count(self) -> usize {
+        self.verifiers.len()
+    }
+
     pub fn verifier_options_for_assignment<'a, 'b: 'a>(
         &'a self,
         assignment: &'b Assignment,
