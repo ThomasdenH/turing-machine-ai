@@ -37,7 +37,11 @@ impl Assignment {
 }
 
 impl Game {
-    pub fn verifier_count(self) -> usize {
+    pub fn verfier(&self, index: u8) -> &Verifier {
+        &self.verifiers[index as usize]
+    }
+
+    pub fn verifier_count(&self) -> usize {
         self.verifiers.len()
     }
 
@@ -55,7 +59,7 @@ impl Game {
         Game { verifiers }
     }
 
-    /// Get all assignments, regardness of their validity.
+    /// Get all assignments, regardless of their validity.
     pub fn all_assignments(&self) -> impl Iterator<Item = Assignment> + '_ {
         let len = self.verifiers.len();
         iter::successors(

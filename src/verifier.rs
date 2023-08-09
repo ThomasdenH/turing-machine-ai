@@ -251,6 +251,10 @@ impl Verifier {
     pub fn option(&self, choice: u8) -> &VerifierOption {
         &self.options[choice as usize]
     }
+
+    pub fn options(&self) -> impl Iterator<Item = &VerifierOption> + '_ {
+        self.options.iter()
+    }
 }
 
 impl VerifierOption {
