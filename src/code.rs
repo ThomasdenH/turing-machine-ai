@@ -1,6 +1,16 @@
 use std::fmt::Debug;
 
-/// A Turing Machine code.
+/// A Turing Machine code, represented by its digits.
+/// 
+/// # Example
+/// ```rust
+/// use turing_machine_ai::code::Code;
+/// 
+/// let code = Code::from_digits(5, 4, 3);
+/// assert_eq!(code.triangle(), 5);
+/// assert_eq!(code.square(), 4);
+/// assert_eq!(code.circle(), 3);
+/// ```
 #[derive(Copy, Clone, Eq, PartialEq)]
 pub struct Code {
     triangle: u8,
@@ -109,6 +119,7 @@ impl Debug for CodeSet {
 }
 
 impl CodeSet {
+    /// Add a code into this code set.
     pub fn insert(&mut self, code: Code) {
         self.code_bitmap |= CodeSet::from_single_code(code).code_bitmap;
     }

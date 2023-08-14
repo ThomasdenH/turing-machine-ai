@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use arrayvec::ArrayVec;
 
 use crate::code::{Code, CodeSet};
@@ -230,6 +232,16 @@ impl<T: Iterator<Item = CodeSet>> Intersection for T {
 pub struct Verifier {
     description: &'static str,
     options: ArrayVec<VerifierOption, MAX_VERIFIER_OPTIONS>,
+}
+
+impl Debug for Verifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "{}", self.description)?;
+        for option in self.options.iter() {
+            writeln!(f, "- {}", option.description)?;
+        }
+        Ok(())
+    }
 }
 
 impl Verifier {

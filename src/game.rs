@@ -1,4 +1,4 @@
-use std::iter;
+use std::{iter, fmt::Debug};
 
 use arrayvec::ArrayVec;
 
@@ -7,11 +7,22 @@ use crate::{
     verifier::{Intersection, Verifier, VerifierOption},
 };
 
+/// The maximum amount of verifiers allowed in a game.
 const MAX_VERIFIERS: usize = 6;
 
 /// A game layout, consisting of the chosen verifiers.
 pub struct Game {
     verifiers: Vec<Verifier>,
+}
+
+impl Debug for Game {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for (verifier, letter) in self.verifiers.iter().zip('A'..) {
+            writeln!(f, "Verifier {}", letter)?;
+            writeln!(f, "{:?}", verifier)?;
+        }
+        Ok(())
+    }
 }
 
 /// A particular assignment for a game. For example, this might indicate that
