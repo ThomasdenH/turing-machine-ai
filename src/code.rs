@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::{fmt::Debug, num::NonZeroU128};
 
 /// A Turing Machine code, represented by its digits.
 /// 
@@ -16,6 +16,37 @@ pub struct Code {
     triangle: u8,
     square: u8,
     circle: u8,
+}
+
+#[derive(Eq, PartialEq, Copy, Clone)]
+pub struct BitCode {
+    bits: NonZeroU128,
+}
+
+impl Debug for BitCode {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Code::from(*self).fmt(f)
+    }
+}
+
+impl From<Code> for BitCode {
+    fn from(code: Code) -> Self {
+        BitCode {
+            bits: (1 << code.to_index()).try_into().unwrap(),
+        }
+    }
+}
+
+impl From<BitCode> for Code {
+    fn from(value: BitCode) -> Self {
+        // TODO: No loop is necessary here
+        for index in 0..125 {
+            if (value.bits.get() & (1 << index)) != 0 {
+                return Code::from_index(index);
+            }
+        }
+        panic!("No solution");
+    }
 }
 
 impl Debug for Code {
@@ -43,11 +74,11 @@ impl Code {
     }
 
     /// Count the appearances of a particular digit.
-    /// 
+    ///
     /// # Example
     /// ```rust
     /// use turing_machine_ai::code::Code;
-    /// 
+    ///
     /// assert_eq!(Code::from_digits(2, 3, 4).count_digit(2), 1);
     /// assert_eq!(Code::from_digits(2, 3, 2).count_digit(2), 2);
     /// ```
@@ -58,11 +89,11 @@ impl Code {
     }
 
     /// Count the even digits.
-    /// 
+    ///
     /// # Example
     /// ```
     /// use turing_machine_ai::code::Code;
-    /// 
+    ///
     /// assert_eq!(Code::from_digits(2, 3, 4).count_even(), 2);
     /// ```
     pub fn count_even(&self) -> usize {
@@ -119,7 +150,10 @@ impl Debug for CodeSet {
 }
 
 impl CodeSet {
-    /// Add a code into this code set.
+    pub fn from_single_code(code: Code) -> Self{
+        CodeSet { code_bitmap: BitCode::from(code).bits.get() }
+    }
+
     pub fn insert(&mut self, code: Code) {
         self.code_bitmap |= CodeSet::from_single_code(code).code_bitmap;
     }
@@ -131,12 +165,8 @@ impl CodeSet {
     }
 
     pub fn union_with(self, code_set: CodeSet) -> CodeSet {
-        CodeSet { code_bitmap: self.code_bitmap | code_set.code_bitmap }
-    }
-
-    pub fn from_single_code(code: Code) -> CodeSet {
         CodeSet {
-            code_bitmap: 1 << code.to_index(),
+            code_bitmap: self.code_bitmap | code_set.code_bitmap,
         }
     }
 
@@ -163,7 +193,7 @@ impl CodeSet {
     }
 
     /// Get the size of this code set.
-    /// 
+    ///
     /// # Example
     /// ```
     /// use turing_machine_ai::code::CodeSet;
@@ -192,10 +222,23 @@ impl CodeSet {
         self.code_bitmap & (1 << code.to_index()) != 0
     }
 
+    pub fn contains_bit_code(&self, code: BitCode) -> bool {
+        (self.code_bitmap & code.bits.get()) != 0
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = Code> + '_ {
         (0..125)
             .map(Code::from_index)
             .filter(|code| self.contains(*code))
+    }
+
+    pub fn iter_bit_code(&self) -> impl Iterator<Item = BitCode> + '_ {
+        (0..125)
+            .map(|index| 1 << index)
+            .filter(|bit_code| self.code_bitmap & bit_code != 0)
+            .map(|bits| BitCode {
+                bits: bits.try_into().unwrap(),
+            })
     }
 }
 
