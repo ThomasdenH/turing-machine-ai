@@ -1,4 +1,4 @@
-use std::{iter, fmt::Debug};
+use std::{fmt::Debug, iter};
 
 use arrayvec::ArrayVec;
 
@@ -121,7 +121,8 @@ impl Game {
 
         // Test for reduncancy
         for excluded_verifier in 0..self.verifiers.len() {
-            let possible_codes = self.verifier_options_for_assignment(assignment)
+            let possible_codes = self
+                .verifier_options_for_assignment(assignment)
                 .enumerate()
                 .filter_map(|(index, verifier_and_choice)| {
                     Some(verifier_and_choice).filter(|_| index != excluded_verifier)
@@ -133,5 +134,14 @@ impl Game {
             }
         }
         true
+    }
+
+    /// Get all possible solutions, i.e. those codes that correspond to a
+    /// verifier result that have exactly one solution.
+    pub fn possible_solutions(&self) -> CodeSet {
+        self.all_assignments()
+            .filter(|assignment| self.is_possible_solution(assignment))
+            .map(|assignment| self.possible_codes_for_assignment(&assignment))
+            .fold(CodeSet::empty(), |all, new| all.union_with(new))
     }
 }

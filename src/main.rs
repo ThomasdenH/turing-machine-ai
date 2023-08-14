@@ -1,48 +1,70 @@
-use turing_machine_ai::code::CodeSet;
+use std::io::stdin;
+
 use turing_machine_ai::game::Game;
-use turing_machine_ai::gametree::{self, State, find_best_move};
+use turing_machine_ai::gametree::{self, Move, State, VerifierSolution};
 use turing_machine_ai::verifier::get_verifier_by_number;
 
 fn main() {
     let game = Game::new_from_verifiers(vec![
-        get_verifier_by_number(13),
-        get_verifier_by_number(16),
-        get_verifier_by_number(23),
-        get_verifier_by_number(33),
-        get_verifier_by_number(34),
-        get_verifier_by_number(45),
+        get_verifier_by_number(3),
+        get_verifier_by_number(7),
+        get_verifier_by_number(10),
+        get_verifier_by_number(14),
     ]);
 
-    let possible_codes = game.all_assignments()
-        .filter(|assignment| game.is_possible_solution(assignment))
-        .map(|assignment| game.possible_codes_for_assignment(&assignment))
-        .fold(CodeSet::empty(), |all, new| all.union_with(new));
-
-    let mut state = State::new(&game, possible_codes);
-    loop {
-        println!(
-            "{:?}",
-            state.possible_codes()
-        );
+    let mut state = State::new(&game);
+    while !state.is_solved() {
+        println!("Possible codes:\n{:?}", state.possible_codes());
         if !state.is_awaiting_result() {
-            let (state_score, move_to_do) = find_best_move(state);
-            if let Some(move_to_do) = move_to_do {
-                match state.after_move(move_to_do) {
-                    gametree::DoMoveResult::NoCodesLeft => println!("No codes left"),
-                    gametree::DoMoveResult::State(new_state) => {
-                        println!("Do move {:?}", move_to_do);
-                        state = new_state;
-                    },
-                    gametree::DoMoveResult::UselessVerifierCheck => println!("Useless verifier check")
+            let (score, move_to_do) = state.find_best_move();
+            println!(
+                "You will find the solution in {} codes and {} verifier checks.",
+                score.codes_guessed, score.verifiers_checked
+            );
+            match state.after_move(move_to_do) {
+                gametree::DoMoveResult::NoCodesLeft => {
+                    println!("There are no possible codes left.")
                 }
-            } else {
-                for (i, move_to_do) in state.possible_moves().iter().enumerate() {
-                    println!("Possible move: {}: {:?}", i, move_to_do);
+                gametree::DoMoveResult::State(new_state) => {
+                    match move_to_do {
+                        gametree::Move::ChooseNewCode(code) => println!("Choose code {:?}.", code),
+                        gametree::Move::ChooseVerifierOption(option) => {
+                            println!("Choose verifier {:?}.", option)
+                        }
+                        gametree::Move::VerifierSolution(_) => panic!(),
+                    }
+                    state = new_state;
                 }
-                panic!("Don't know which move to take!");
+                gametree::DoMoveResult::UselessVerifierCheck => {
+                    println!("The chosen verifier does not give any new information.")
+                }
             }
         } else {
-            panic!("Awaiting result");
+            loop {
+                println!("What does the verifier tell you? x/v");
+                let mut string = String::new();
+                stdin().read_line(&mut string).unwrap();
+                let state_result = match string.trim() {
+                    "x" | "X" => state.after_move(Move::VerifierSolution(VerifierSolution::Cross)),
+                    "v" | "V" => state.after_move(Move::VerifierSolution(VerifierSolution::Check)),
+                    other => {
+                        println!("Unknown selection: '{other}'");
+                        continue;
+                    }
+                };
+                match state_result {
+                    gametree::DoMoveResult::NoCodesLeft => panic!("No codes left!"),
+                    gametree::DoMoveResult::State(new_state) => {
+                        state = new_state;
+                        break;
+                    }
+                    gametree::DoMoveResult::UselessVerifierCheck => {
+                        panic!("Useless verifier check")
+                    }
+                }
+            }
         }
     }
+
+    println!("Solved! Solution: {:?}", state.possible_codes().iter().next().unwrap());
 }

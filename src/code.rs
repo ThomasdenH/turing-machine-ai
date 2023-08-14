@@ -1,11 +1,11 @@
 use std::{fmt::Debug, num::NonZeroU128};
 
 /// A Turing Machine code, represented by its digits.
-/// 
+///
 /// # Example
 /// ```rust
 /// use turing_machine_ai::code::Code;
-/// 
+///
 /// let code = Code::from_digits(5, 4, 3);
 /// assert_eq!(code.triangle(), 5);
 /// assert_eq!(code.square(), 4);
@@ -150,8 +150,10 @@ impl Debug for CodeSet {
 }
 
 impl CodeSet {
-    pub fn from_single_code(code: Code) -> Self{
-        CodeSet { code_bitmap: BitCode::from(code).bits.get() }
+    pub fn from_single_code(code: Code) -> Self {
+        CodeSet {
+            code_bitmap: BitCode::from(code).bits.get(),
+        }
     }
 
     pub fn insert(&mut self, code: Code) {
@@ -247,6 +249,16 @@ impl FromIterator<Code> for CodeSet {
         let mut code_set = CodeSet::empty();
         for code in iter {
             code_set.insert(code);
+        }
+        code_set
+    }
+}
+
+impl FromIterator<CodeSet> for CodeSet {
+    fn from_iter<T: IntoIterator<Item = CodeSet>>(iter: T) -> Self {
+        let mut code_set = CodeSet::empty();
+        for new_code_set in iter {
+            code_set = code_set.union_with(new_code_set);
         }
         code_set
     }

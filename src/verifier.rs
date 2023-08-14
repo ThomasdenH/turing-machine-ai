@@ -40,7 +40,9 @@ pub fn get_verifier_by_number(number: usize) -> Verifier {
             VerifierOption::from_description_and_closure("○ is even", |code| {
                 code.circle() % 2 == 0
             }),
-            VerifierOption::from_description_and_closure("○ is odd", |code| code.circle() % 2 == 1),
+            VerifierOption::from_description_and_closure("○ is odd", |code| {
+                code.circle() % 2 == 1
+            }),
         ],
     ));
 
@@ -156,11 +158,15 @@ pub fn get_verifier_by_number(number: usize) -> Verifier {
             VerifierOption::from_description_and_closure("□ is even", |code| {
                 code.square() % 2 == 0
             }),
-            VerifierOption::from_description_and_closure("□ is odd", |code| code.square() % 2 == 1),
+            VerifierOption::from_description_and_closure("□ is odd", |code| {
+                code.square() % 2 == 1
+            }),
             VerifierOption::from_description_and_closure("○ is even", |code| {
                 code.circle() % 2 == 0
             }),
-            VerifierOption::from_description_and_closure("○ is odd", |code| code.circle() % 2 == 1),
+            VerifierOption::from_description_and_closure("○ is odd", |code| {
+                code.circle() % 2 == 1
+            }),
         ],
     ));
 
@@ -253,7 +259,10 @@ impl Verifier {
         self.options.len()
     }
 
-    pub fn from_description_and_options(description: &'static str, options: &[VerifierOption]) -> Self {
+    pub fn from_description_and_options(
+        description: &'static str,
+        options: &[VerifierOption],
+    ) -> Self {
         Verifier {
             description,
             options: options.iter().copied().collect(),
