@@ -1,5 +1,7 @@
 use std::fmt::Debug;
 
+use thiserror::Error;
+
 use crate::{
     code::{BitCode, CodeSet},
     game::Game,
@@ -76,11 +78,9 @@ impl StateScore {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
-pub enum DoMoveResult<'a> {
-    NoCodesLeft,
-    UselessVerifierCheck,
-    State(State<'a>),
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum AfterMoveInfo {
+    UselessVerifierCheck
 }
 
 impl Ord for StateScore {
@@ -124,6 +124,14 @@ pub enum Move {
     ChooseVerifierOption(ChosenVerifierOption),
 }
 
+#[derive(Copy, Clone, Eq, PartialEq, Error, Debug)]
+pub enum AfterMoveError {
+    #[error("invalid move for game state")]
+    InvalidMoveError,
+    #[error("there are no solutions left for this game state")]
+    NoCodesLeft
+}
+
 impl<'a> State<'a> {
     pub fn new(game: &'a Game) -> Self {
         State {
@@ -145,22 +153,32 @@ impl<'a> State<'a> {
         self.possible_codes.size() == 1
     }
 
-    /// Return the state after performing the given move.
-    pub fn after_move(mut self, move_to_do: Move) -> DoMoveResult<'a> {
+    /// Return the state after performing the given move. If the given move is
+    /// invalid, this function returns an error. In addition to the state
+    /// itself, this function will sometimes provide additional information
+    /// about the transition as the second argument of the tuple.
+    pub fn after_move(mut self, move_to_do: Move) -> Result<(State<'a>, Option<AfterMoveInfo>), AfterMoveError> {
+        let mut info = None;
         match move_to_do {
             Move::ChooseNewCode(code) => {
-                debug_assert!(self.currently_chosen_verifier_option.is_none());
+                if self.is_awaiting_result() {
+                    return Err(AfterMoveError::InvalidMoveError);
+                }
                 self.currently_selected_code = Some(code);
                 self.codes_guessed += 1;
                 self.guessed_one_verifier_for_code = false;
             }
             Move::ChooseVerifierOption(choose_verifier_option) => {
-                debug_assert!(self.currently_chosen_verifier_option.is_none());
+                if self.is_awaiting_result() {
+                    return Err(AfterMoveError::InvalidMoveError);
+                }
                 self.currently_chosen_verifier_option = Some(choose_verifier_option);
                 self.verifiers_checked += 1;
             }
             Move::VerifierSolution(verifier_solution) => {
-                debug_assert!(self.currently_selected_code.is_some());
+                if !self.is_awaiting_result() {
+                    return Err(AfterMoveError::InvalidMoveError);
+                }
                 // Eliminate codes
                 let chosen_verifier = self.currently_chosen_verifier_option.unwrap().0;
 
@@ -180,9 +198,9 @@ impl<'a> State<'a> {
                 let possible_codes = self.possible_codes;
                 let new_possible_codes = possible_codes.intersected_with(bitmask_for_solution);
                 if new_possible_codes == possible_codes {
-                    return DoMoveResult::UselessVerifierCheck;
+                    info = Some(AfterMoveInfo::UselessVerifierCheck);
                 } else if new_possible_codes.size() == 0 {
-                    return DoMoveResult::NoCodesLeft;
+                    return Err(AfterMoveError::NoCodesLeft);
                 } else {
                     self.possible_codes = new_possible_codes;
                 }
@@ -193,7 +211,7 @@ impl<'a> State<'a> {
                 }
             }
         }
-        DoMoveResult::State(self)
+        Ok((self, info))
     }
 
     /// Returns true if the game is awaiting a verifier answer.
@@ -205,36 +223,35 @@ impl<'a> State<'a> {
     /// - Verifiers may return impossible results, leading to no solution.
     /// - Codes or verifiers may be chosen that do not provide information to
     ///   the player.
-    pub fn possible_moves(&self) -> Vec<Move> {
-        let mut moves = Vec::new();
+    pub fn possible_moves(&self) -> impl Iterator<Item = Move> + '_ {
+        // This function looks messy to avoid allocating a Vec with moves.
 
-        if self.is_awaiting_result() {
-            // Already chosen a verifier option, resolve
-            moves.append(&mut vec![
-                Move::VerifierSolution(VerifierSolution::Check),
-                Move::VerifierSolution(VerifierSolution::Cross),
-            ]);
-        } else {
-            if self.currently_selected_code.is_some() {
-                // Selected a code, so now select a verifier.
-                moves.append(
-                    &mut (0..self.game.verifier_count())
-                        .map(|i| Move::ChooseVerifierOption(ChosenVerifierOption(i as u8)))
-                        .collect(),
-                );
-            }
-            if self.currently_selected_code.is_none() || self.guessed_one_verifier_for_code {
-                // If no code was selected, or if a verifier was checked, the
-                // next code may be selected.
-                moves.append(
-                    &mut CodeSet::all()
+        // If awaiting result, return both results
+        [
+            Move::VerifierSolution(VerifierSolution::Check),
+            Move::VerifierSolution(VerifierSolution::Cross),
+        ]
+        .iter()
+        .copied()
+        .filter(|_| self.is_awaiting_result())
+        // Otherwise,
+        .chain(
+            // Otherwise, if a code is chosen, choose a verifier
+            (0..self.game.verifier_count())
+                .map(|i| Move::ChooseVerifierOption(ChosenVerifierOption(i as u8)))
+                .filter(|_| self.currently_selected_code.is_some())
+                .chain(
+                    // If the code was used once, or if no code was selected, choose new code
+                    CodeSet::all()
                         .iter_bit_code()
                         .map(Move::ChooseNewCode)
-                        .collect::<Vec<Move>>(),
-                );
-            }
-        }
-        moves
+                        .filter(|_| {
+                            self.currently_selected_code.is_none()
+                                || self.guessed_one_verifier_for_code
+                        }),
+                )
+                .filter(|_| !self.is_awaiting_result()),
+        )
     }
 
     fn is_maximizing_score(self) -> bool {
@@ -255,9 +272,10 @@ impl<'a> State<'a> {
             for move_to_do in self.possible_moves() {
                 let next_node = self.after_move(move_to_do);
                 let score = match next_node {
-                    DoMoveResult::NoCodesLeft => StateScore::no_solution(),
-                    DoMoveResult::UselessVerifierCheck => StateScore::useless_verifier_check(),
-                    DoMoveResult::State(state) => state.alphabeta(alpha, beta).0,
+                    Err(AfterMoveError::NoCodesLeft) => StateScore::no_solution(),
+                    Err(AfterMoveError::InvalidMoveError) => panic!("invalid move!"),
+                    Ok((_, Some(AfterMoveInfo::UselessVerifierCheck))) => StateScore::useless_verifier_check(),
+                    Ok((state, None)) => state.alphabeta(alpha, beta).0,
                 };
                 if score > highest_score {
                     highest_score = score;
@@ -276,9 +294,10 @@ impl<'a> State<'a> {
             for move_to_do in self.possible_moves() {
                 let next_node = self.after_move(move_to_do);
                 let score = match next_node {
-                    DoMoveResult::NoCodesLeft => StateScore::no_solution(),
-                    DoMoveResult::UselessVerifierCheck => StateScore::useless_verifier_check(),
-                    DoMoveResult::State(state) => state.alphabeta(alpha, beta).0,
+                    Err(AfterMoveError::NoCodesLeft) => StateScore::no_solution(),
+                    Err(AfterMoveError::InvalidMoveError) => panic!("invalid move"),
+                    Ok((_, Some(AfterMoveInfo::UselessVerifierCheck))) => StateScore::useless_verifier_check(),
+                    Ok((state, None)) => state.alphabeta(alpha, beta).0,
                 };
                 if score < lowest_score {
                     lowest_score = score;

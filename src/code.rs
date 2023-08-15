@@ -18,6 +18,9 @@ pub struct Code {
     circle: u8,
 }
 
+/// A Turing Machine code, represented by a flipped bit in a `u128`. This is
+/// the most efficient format for use with `CodeSet` since it allows for fast
+/// set inclusion checks.
 #[derive(Eq, PartialEq, Copy, Clone)]
 pub struct BitCode {
     bits: NonZeroU128,
@@ -244,10 +247,10 @@ impl CodeSet {
             .filter(|code| self.contains(*code))
     }
 
-    pub fn iter_bit_code(&self) -> impl Iterator<Item = BitCode> + '_ {
+    pub fn iter_bit_code(self) -> impl Iterator<Item = BitCode> {
         (0..125)
             .map(|index| 1 << index)
-            .filter(|bit_code| self.code_bitmap & bit_code != 0)
+            .filter(move |bit_code| self.code_bitmap & bit_code != 0)
             .map(|bits| BitCode {
                 bits: bits.try_into().unwrap(),
             })
