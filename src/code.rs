@@ -102,6 +102,16 @@ impl Code {
             + (if self.circle % 2 == 0 { 1 } else { 0 })
     }
 
+    /// Number of digits in ascending or descending order as specified by
+    /// verifier 25.
+    pub fn numbers_ascending_or_descending(&self) -> usize {
+        match (self.triangle() as i8 - self.square() as i8, self.square() as i8 - self.circle() as i8) {
+            (1, 1) | (-1, -1) => 3,
+            (1, _) | (_, 1) | (-1, _) | (_, -1) => 2,
+            _ => 0
+        }
+    }
+
     pub fn from_digits(triangle: u8, square: u8, circle: u8) -> Code {
         assert!((1..=5).contains(&triangle));
         assert!((1..=5).contains(&square));

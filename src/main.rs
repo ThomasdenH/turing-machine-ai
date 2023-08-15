@@ -2,15 +2,9 @@ use std::io::stdin;
 
 use turing_machine_ai::game::Game;
 use turing_machine_ai::gametree::{self, Move, State, VerifierSolution};
-use turing_machine_ai::verifier::get_verifier_by_number;
 
 fn main() {
-    let game = Game::new_from_verifiers(vec![
-        get_verifier_by_number(3),
-        get_verifier_by_number(7),
-        get_verifier_by_number(10),
-        get_verifier_by_number(14),
-    ]);
+    let game = Game::new_from_verifier_numbers([2, 16, 25, 33, 36, 44].iter().copied());
 
     let mut state = State::new(&game);
     while !state.is_solved() {

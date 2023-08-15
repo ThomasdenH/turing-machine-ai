@@ -4,7 +4,7 @@ use arrayvec::ArrayVec;
 
 use crate::{
     code::CodeSet,
-    verifier::{Intersection, Verifier, VerifierOption},
+    verifier::{Intersection, Verifier, VerifierOption, get_verifier_by_number},
 };
 
 /// The maximum amount of verifiers allowed in a game.
@@ -68,6 +68,10 @@ impl Game {
 
     pub fn new_from_verifiers(verifiers: Vec<Verifier>) -> Game {
         Game { verifiers }
+    }
+
+    pub fn new_from_verifier_numbers(verifier_numbers: impl Iterator<Item = usize>) -> Game {
+        Game { verifiers: verifier_numbers.map(get_verifier_by_number).collect() }
     }
 
     /// Get all assignments, regardless of their validity.

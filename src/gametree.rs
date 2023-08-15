@@ -9,7 +9,7 @@ use crate::{
 /// solutions for the verifier selection, the currently selected code (if any),
 /// the currently selected verifier (if any), whether a verifier was tested, as
 /// well as how many tests were performed.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct State<'a> {
     game: &'a Game,
     /// All the codes that are still possible solutions.
@@ -56,10 +56,6 @@ impl StateScore {
         StateScore(u16::MAX)
     }
 
-    fn perfect_game() -> Self {
-        StateScore(0)
-    }
-
     pub fn codes_and_verifiers_checked(self) -> Option<GameScore> {
         if self.0 == u16::MAX {
             None
@@ -80,6 +76,7 @@ impl StateScore {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
 pub enum DoMoveResult<'a> {
     NoCodesLeft,
     UselessVerifierCheck,
@@ -127,12 +124,6 @@ pub enum Move {
     ChooseVerifierOption(ChosenVerifierOption),
 }
 
-impl Move {
-    fn is_maximizing_score(&self) -> bool {
-        !matches!(self, Move::VerifierSolution(_))
-    }
-}
-
 impl<'a> State<'a> {
     pub fn new(game: &'a Game) -> Self {
         State {
@@ -158,6 +149,7 @@ impl<'a> State<'a> {
     pub fn after_move(mut self, move_to_do: Move) -> DoMoveResult<'a> {
         match move_to_do {
             Move::ChooseNewCode(code) => {
+                debug_assert!(self.currently_chosen_verifier_option.is_none());
                 self.currently_selected_code = Some(code);
                 self.codes_guessed += 1;
                 self.guessed_one_verifier_for_code = false;
@@ -168,6 +160,7 @@ impl<'a> State<'a> {
                 self.verifiers_checked += 1;
             }
             Move::VerifierSolution(verifier_solution) => {
+                debug_assert!(self.currently_selected_code.is_some());
                 // Eliminate codes
                 let chosen_verifier = self.currently_chosen_verifier_option.unwrap().0;
 
@@ -244,24 +237,19 @@ impl<'a> State<'a> {
         moves
     }
 
+    fn is_maximizing_score(self) -> bool {
+        !self.is_awaiting_result()
+    }
+
     /// Perform minmax with alpha-beta pruning.
-    fn alphabeta(
-        self,
-        mut alpha: StateScore,
-        mut beta: StateScore,
-        is_maximizing_score: bool,
-    ) -> (StateScore, Option<Move>) {
-        // println!("{:?}, {:?}", alpha, beta);
-        // println!("Current code: {:?}", self.currently_selected_code);
-        // println!("Codes: {}, verifiers: {}", self.codes_guessed, self.verifiers_checked);
-        // println!("{:?}", self.possible_codes);
+    fn alphabeta(self, mut alpha: StateScore, mut beta: StateScore) -> (StateScore, Option<Move>) {
         // If the game is solved, return the result.
         if self.is_solved() {
             (
                 StateScore::solution(self.codes_guessed, self.verifiers_checked),
                 None,
             )
-        } else if is_maximizing_score {
+        } else if self.is_maximizing_score() {
             let mut highest_score = StateScore::min();
             let mut best_move = None;
             for move_to_do in self.possible_moves() {
@@ -269,11 +257,7 @@ impl<'a> State<'a> {
                 let score = match next_node {
                     DoMoveResult::NoCodesLeft => StateScore::no_solution(),
                     DoMoveResult::UselessVerifierCheck => StateScore::useless_verifier_check(),
-                    DoMoveResult::State(state) => {
-                        state
-                            .alphabeta(alpha, beta, move_to_do.is_maximizing_score())
-                            .0
-                    }
+                    DoMoveResult::State(state) => state.alphabeta(alpha, beta).0,
                 };
                 if score > highest_score {
                     highest_score = score;
@@ -294,11 +278,7 @@ impl<'a> State<'a> {
                 let score = match next_node {
                     DoMoveResult::NoCodesLeft => StateScore::no_solution(),
                     DoMoveResult::UselessVerifierCheck => StateScore::useless_verifier_check(),
-                    DoMoveResult::State(state) => {
-                        state
-                            .alphabeta(alpha, beta, move_to_do.is_maximizing_score())
-                            .0
-                    }
+                    DoMoveResult::State(state) => state.alphabeta(alpha, beta).0,
                 };
                 if score < lowest_score {
                     lowest_score = score;
@@ -321,10 +301,10 @@ impl<'a> State<'a> {
     pub fn find_best_move(self) -> (GameScore, Move) {
         assert!(!self.is_awaiting_result() && !self.is_solved());
         // The optimal possible game.
-        let alpha = StateScore::perfect_game();
+        let alpha = StateScore::min();
         // The worst possible game.
-        let beta = StateScore::useless_verifier_check();
-        if let (score, Some(move_to_do)) = self.alphabeta(alpha, beta, true) {
+        let beta = StateScore::max();
+        if let (score, Some(move_to_do)) = self.alphabeta(alpha, beta) {
             (score.codes_and_verifiers_checked().unwrap(), move_to_do)
         } else {
             panic!("No move possible");

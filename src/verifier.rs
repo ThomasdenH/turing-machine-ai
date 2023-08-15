@@ -16,6 +16,15 @@ pub fn get_verifier_by_number(number: usize) -> Verifier {
         ],
     ));
 
+    verifiers[1] = Some(Verifier::from_description_and_options(
+        "the △ number compared to 3",
+        &[
+            VerifierOption::from_description_and_closure("△ < 3", |code| code.triangle() < 3),
+            VerifierOption::from_description_and_closure("△ = 3", |code| code.triangle() == 3),
+            VerifierOption::from_description_and_closure("△ > 3", |code| code.triangle() > 3),
+        ],
+    ));
+
     verifiers[2] = Some(Verifier::from_description_and_options(
         "the □ number compared to 3",
         &[
@@ -142,6 +151,21 @@ pub fn get_verifier_by_number(number: usize) -> Verifier {
             }),
             VerifierOption::from_description_and_closure("△ + □ + ○ > 6", |code| {
                 code.triangle() + code.square() + code.circle() > 6
+            }),
+        ],
+    ));
+
+    verifiers[24] = Some(Verifier::from_description_and_options(
+        "if there is a sequence of ascending or descending numbers",
+        &[
+            VerifierOption::from_description_and_closure("no sequence of numbers in ascending or descending order", |code| {
+                code.numbers_ascending_or_descending() == 0
+            }),
+            VerifierOption::from_description_and_closure("2 numbers in ascending or descending order", |code| {
+                code.numbers_ascending_or_descending() == 2
+            }),
+            VerifierOption::from_description_and_closure("3 numbers in ascending or descending order", |code| {
+                code.numbers_ascending_or_descending() == 3
             }),
         ],
     ));
