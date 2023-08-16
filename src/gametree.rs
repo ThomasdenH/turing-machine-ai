@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use thiserror::Error;
 
 use crate::{
-    code::{BitCode, CodeSet},
+    code::{Code, CodeSet},
     game::Game,
 };
 
@@ -16,7 +16,7 @@ pub struct State<'a> {
     game: &'a Game,
     /// All the codes that are still possible solutions.
     possible_codes: CodeSet,
-    currently_selected_code: Option<BitCode>,
+    currently_selected_code: Option<Code>,
     currently_chosen_verifier_option: Option<ChosenVerifierOption>,
     guessed_one_verifier_for_code: bool,
     codes_guessed: u8,
@@ -119,7 +119,7 @@ impl Debug for ChosenVerifierOption {
 
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
 pub enum Move {
-    ChooseNewCode(BitCode),
+    ChooseNewCode(Code),
     VerifierSolution(VerifierSolution),
     ChooseVerifierOption(ChosenVerifierOption),
 }
@@ -190,7 +190,7 @@ impl<'a> State<'a> {
                     .map(|verifier_option| verifier_option.code_set())
                     .filter(|code_set| {
                         let would_give_check =
-                            code_set.contains_bit_code(self.currently_selected_code.unwrap());
+                            code_set.contains(self.currently_selected_code.unwrap());
                         let gives_check = verifier_solution == VerifierSolution::Check;
                         would_give_check == gives_check
                     })
@@ -243,7 +243,7 @@ impl<'a> State<'a> {
                 .chain(
                     // If the code was used once, or if no code was selected, choose new code
                     CodeSet::all()
-                        .iter_bit_code()
+                        .iter()
                         .map(Move::ChooseNewCode)
                         .filter(|_| {
                             self.currently_selected_code.is_none()
