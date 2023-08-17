@@ -17,6 +17,13 @@ pub enum CodeError {
     InvalidDigits
 }
 
+#[derive(Clone, Copy, Eq, PartialEq)]
+pub enum Order {
+    Ascending,
+    Descending,
+    NoOrder
+}
+
 impl Code {
     fn digits_to_index(triangle: u8, square: u8, circle: u8) -> usize {
         (usize::from(triangle) - 1)
@@ -73,6 +80,11 @@ impl Code {
         self.digits().2
     }
 
+    pub fn sum(self) -> u8 {
+        let (a, b, c) = self.digits();
+        a + b + c
+    }
+
     /// Count the appearances of a particular digit.
     ///
     /// # Example
@@ -107,11 +119,69 @@ impl Code {
 
     /// Number of digits in ascending or descending order as specified by
     /// verifier 25.
-    pub fn numbers_ascending_or_descending(&self) -> usize {
+    pub fn sequence_ascending_or_descending(&self) -> usize {
         match (self.triangle() as i8 - self.square() as i8, self.square() as i8 - self.circle() as i8) {
             (1, 1) | (-1, -1) => 3,
             (1, _) | (_, 1) | (-1, _) | (_, -1) => 2,
             _ => 0
+        }
+    }
+
+    /// Number of digits in ascending order.
+    /// ```
+    /// use turing_machine_ai::code::Code;
+    /// assert_eq!(Code::from_digits(2, 3, 4)?.sequence_ascending(), 3);
+    /// assert_eq!(Code::from_digits(2, 3, 3)?.sequence_ascending(), 2);
+    /// assert_eq!(Code::from_digits(1, 3, 5)?.sequence_ascending(), 0);
+    /// # Ok::<(), turing_machine_ai::code::CodeError>(())
+    /// ```
+    pub fn sequence_ascending(self) -> usize {
+        let (t, s, c) = self.digits();
+        if t + 1 == s && s + 1 == c {
+            3
+        } else if t + 1 == s || s + 1 == c {
+            2 
+        } else {
+            0
+        }
+    }
+
+    /// Counts the repetitions of the most frequent number, à la verifier card
+    /// 20.
+    ///
+    /// ```rust
+    /// use turing_machine_ai::code::Code;
+    /// assert_eq!(Code::from_digits(2, 2, 2)?.repeating_numbers(), 2);
+    /// assert_eq!(Code::from_digits(1, 1, 2)?.repeating_numbers(), 1);
+    /// assert_eq!(Code::from_digits(1, 2, 1)?.repeating_numbers(), 1);
+    /// assert_eq!(Code::from_digits(1, 2, 5)?.repeating_numbers(), 0);
+    /// # Ok::<(), turing_machine_ai::code::CodeError>(())
+    /// ```
+    pub fn repeating_numbers(self) -> usize {
+        match self.digits() {
+            (a, b, c) if a == b && b == c => 2,
+            (a, b, c) if a == b || b == c => 1,
+            _ => 0
+        }
+    }
+
+    /// Provides the order of the digits as in verifier 22.
+    /// 
+    /// ```rust
+    /// use turing_machine_ai::code::Code;
+    /// assert_eq!(Code::from_digits(1, 3, 5)?.ascending_or_descending(), Order::Ascending);
+    /// assert_eq!(Code::from_digits(4, 2, 1)?.ascending_or_descending(), Order::Descending);
+    /// assert_eq!(Code::from_digits(2, 3, 1)?.ascending_or_descending(), Order::NoOrder);
+    /// # Ok::<(), turing_machine_ai::code::CodeError>(())
+    /// ```
+    pub fn ascending_or_descending(self) -> Order {
+        let (triangle, square, circle) = self.digits();
+        if triangle < square && square < circle {
+            Order::Ascending
+        } else if triangle > square && square > circle {
+            Order::Descending
+        } else {
+            Order::NoOrder
         }
     }
 }
