@@ -4,7 +4,7 @@ use arrayvec::ArrayVec;
 
 use crate::{
     code::CodeSet,
-    verifier::{Intersection, Verifier, VerifierOption, get_verifier_by_number},
+    verifier::{Intersection, Verifier, VerifierOption, get_verifier_by_number}, gametree::State,
 };
 
 /// The maximum amount of verifiers allowed in a game.
@@ -48,6 +48,10 @@ impl Assignment {
 }
 
 impl Game {
+    pub fn starting_state(&self) -> State<'_> {
+        State::new(self)
+    }
+
     pub fn verfier(&self, index: u8) -> &Verifier {
         &self.verifiers[index as usize]
     }

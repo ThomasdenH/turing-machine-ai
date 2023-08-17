@@ -159,6 +159,13 @@ impl<'a> State<'a> {
         self.possible_codes.size() == 1
     }
 
+    /// If solved, returns the solution. Otherwise, it returns `None`.
+    pub fn solution(self) -> Option<Code> {
+        self.possible_codes.iter()
+            .next()
+            .filter(|_| self.is_solved())
+    }
+
     /// Return the state after performing the given move. If the given move is
     /// invalid, this function returns an error. In addition to the state
     /// itself, this function will sometimes provide additional information

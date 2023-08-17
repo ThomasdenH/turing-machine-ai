@@ -17,7 +17,7 @@ pub enum CodeError {
     InvalidDigits
 }
 
-#[derive(Clone, Copy, Eq, PartialEq)]
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum Order {
     Ascending,
     Descending,
@@ -160,7 +160,7 @@ impl Code {
     pub fn repeating_numbers(self) -> usize {
         match self.digits() {
             (a, b, c) if a == b && b == c => 2,
-            (a, b, c) if a == b || b == c => 1,
+            (a, b, c) if a == b || b == c || a == c => 1,
             _ => 0
         }
     }
@@ -168,7 +168,7 @@ impl Code {
     /// Provides the order of the digits as in verifier 22.
     /// 
     /// ```rust
-    /// use turing_machine_ai::code::Code;
+    /// use turing_machine_ai::code::{Code, Order};
     /// assert_eq!(Code::from_digits(1, 3, 5)?.ascending_or_descending(), Order::Ascending);
     /// assert_eq!(Code::from_digits(4, 2, 1)?.ascending_or_descending(), Order::Descending);
     /// assert_eq!(Code::from_digits(2, 3, 1)?.ascending_or_descending(), Order::NoOrder);
