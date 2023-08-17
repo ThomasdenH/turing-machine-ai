@@ -1,5 +1,5 @@
-use std::num::NonZeroU128;
 use std::fmt::Debug;
+use std::num::NonZeroU128;
 
 use thiserror::Error;
 
@@ -14,37 +14,41 @@ pub struct Code {
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Error)]
 pub enum CodeError {
     #[error("the provided digits do not form a valid code")]
-    InvalidDigits
+    InvalidDigits,
 }
 
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum Order {
     Ascending,
     Descending,
-    NoOrder
+    NoOrder,
 }
 
 impl Code {
     fn digits_to_index(triangle: u8, square: u8, circle: u8) -> usize {
-        (usize::from(triangle) - 1)
-            + (usize::from(square) - 1) * 5
-            + (usize::from(circle) - 1) * 25
+        (usize::from(triangle) - 1) + (usize::from(square) - 1) * 5 + (usize::from(circle) - 1) * 25
     }
 
     fn from_index(index: usize) -> Result<Self, CodeError> {
         if index < 125 {
-            Ok(Code { bits: (1 << index).try_into().unwrap() })
+            Ok(Code {
+                bits: (1 << index).try_into().unwrap(),
+            })
         } else {
             Err(CodeError::InvalidDigits)
         }
     }
 
+    #[must_use]
     pub fn from_digits(triangle: u8, square: u8, circle: u8) -> Result<Self, CodeError> {
-        if !(1..=5).contains(&triangle) || !(1..=5).contains(&square) || !(1..=5).contains(&circle) {
+        if !(1..=5).contains(&triangle) || !(1..=5).contains(&square) || !(1..=5).contains(&circle)
+        {
             Err(CodeError::InvalidDigits)
         } else {
             Ok(Code {
-                bits: (1 << Self::digits_to_index(triangle, square, circle)).try_into().unwrap()
+                bits: (1 << Self::digits_to_index(triangle, square, circle))
+                    .try_into()
+                    .unwrap(),
             })
         }
     }
@@ -52,30 +56,38 @@ impl Code {
     /// Get the digits of this code.
     /// ```rust
     /// use turing_machine_ai::code::Code;
-    /// 
+    ///
     /// let code = Code::from_digits(5, 4, 3)?;
     /// assert_eq!(code.digits(), (5, 4, 3));
-    /// 
+    ///
     /// let code_2 = Code::from_digits(1, 3, 4)?;
     /// assert_eq!(code_2.digits(), (1, 3, 4));
     /// # Ok::<(), turing_machine_ai::code::CodeError>(())
     /// ```
+    #[must_use]
     pub fn digits(self) -> (u8, u8, u8) {
         let index = self.bits.trailing_zeros();
         let triangle = (index % 5) + 1;
         let square = ((index / 5) % 5) + 1;
         let circle = ((index / 25) % 5) + 1;
-        (triangle as u8, square as u8, circle as u8)
+        (
+            u8::try_from(triangle).unwrap(),
+            u8::try_from(square).unwrap(),
+            u8::try_from(circle).unwrap(),
+        )
     }
 
+    #[must_use]
     pub fn triangle(self) -> u8 {
         self.digits().0
     }
 
+    #[must_use]
     pub fn square(self) -> u8 {
         self.digits().1
     }
 
+    #[must_use]
     pub fn circle(self) -> u8 {
         self.digits().2
     }
@@ -89,7 +101,7 @@ impl Code {
     ///
     /// # Example
     /// ```rust
-    /// 
+    ///
     /// use turing_machine_ai::code::Code;
     ///
     /// assert_eq!(Code::from_digits(2, 3, 4)?.count_digit(2), 1);
@@ -119,11 +131,15 @@ impl Code {
 
     /// Number of digits in ascending or descending order as specified by
     /// verifier 25.
+    #[must_use]
     pub fn sequence_ascending_or_descending(&self) -> usize {
-        match (self.triangle() as i8 - self.square() as i8, self.square() as i8 - self.circle() as i8) {
+        match (
+            self.triangle() as i8 - self.square() as i8,
+            self.square() as i8 - self.circle() as i8,
+        ) {
             (1, 1) | (-1, -1) => 3,
-            (1, _) | (_, 1) | (-1, _) | (_, -1) => 2,
-            _ => 0
+            (1 | -1, _) | (_, 1 | -1) => 2,
+            _ => 0,
         }
     }
 
@@ -135,12 +151,13 @@ impl Code {
     /// assert_eq!(Code::from_digits(1, 3, 5)?.sequence_ascending(), 0);
     /// # Ok::<(), turing_machine_ai::code::CodeError>(())
     /// ```
+    #[must_use]
     pub fn sequence_ascending(self) -> usize {
         let (t, s, c) = self.digits();
         if t + 1 == s && s + 1 == c {
             3
         } else if t + 1 == s || s + 1 == c {
-            2 
+            2
         } else {
             0
         }
@@ -161,20 +178,21 @@ impl Code {
         match self.digits() {
             (a, b, c) if a == b && b == c => 2,
             (a, b, c) if a == b || b == c || a == c => 1,
-            _ => 0
+            _ => 0,
         }
     }
 
     /// Provides the order of the digits as in verifier 22.
-    /// 
+    ///
     /// ```rust
     /// use turing_machine_ai::code::{Code, Order};
-    /// assert_eq!(Code::from_digits(1, 3, 5)?.ascending_or_descending(), Order::Ascending);
-    /// assert_eq!(Code::from_digits(4, 2, 1)?.ascending_or_descending(), Order::Descending);
-    /// assert_eq!(Code::from_digits(2, 3, 1)?.ascending_or_descending(), Order::NoOrder);
+    /// assert_eq!(Code::from_digits(1, 3, 5)?.is_ascending_or_descending(), Order::Ascending);
+    /// assert_eq!(Code::from_digits(4, 2, 1)?.is_ascending_or_descending(), Order::Descending);
+    /// assert_eq!(Code::from_digits(2, 3, 1)?.is_ascending_or_descending(), Order::NoOrder);
     /// # Ok::<(), turing_machine_ai::code::CodeError>(())
     /// ```
-    pub fn ascending_or_descending(self) -> Order {
+    #[must_use]
+    pub fn is_ascending_or_descending(self) -> Order {
         let (triangle, square, circle) = self.digits();
         if triangle < square && square < circle {
             Order::Ascending
@@ -212,8 +230,11 @@ impl Debug for CodeSet {
 impl CodeSet {
     /// Create a new code set, containing only the provided code. This is a
     /// free operation.
+    #[must_use]
     pub fn new_from_code(code: Code) -> Self {
-        CodeSet { code_bitmap: code.bits.get() }
+        CodeSet {
+            code_bitmap: code.bits.get(),
+        }
     }
 
     /// Insert the given code into this code set.
@@ -223,6 +244,7 @@ impl CodeSet {
 
     /// Get a new code set, that contains only the elements contained in both
     /// this set, as well as the provided set.
+    #[must_use]
     pub fn intersected_with(self, code_set: CodeSet) -> CodeSet {
         CodeSet {
             code_bitmap: self.code_bitmap & code_set.code_bitmap,
@@ -231,6 +253,7 @@ impl CodeSet {
 
     /// Get a new code set that contains all elements contained in either this
     /// set, or the provided set.
+    #[must_use]
     pub fn union_with(self, code_set: CodeSet) -> CodeSet {
         CodeSet {
             code_bitmap: self.code_bitmap | code_set.code_bitmap,
@@ -238,30 +261,31 @@ impl CodeSet {
     }
 
     /// Return an empty set.
-    /// 
+    ///
     /// # Example
     /// ```rust
     /// use turing_machine_ai::code::CodeSet;
-    /// 
+    ///
     /// let empty_set = CodeSet::empty();
     /// assert_eq!(empty_set.size(), 0);
     /// ```
+    #[must_use]
     pub fn empty() -> CodeSet {
         CodeSet { code_bitmap: 0 }
     }
 
     /// Return a set containing all codes.
-    /// 
+    ///
     /// # Example
     /// ```rust
     /// use turing_machine_ai::code::CodeSet;
-    /// 
+    ///
     /// let complete_set = CodeSet::all();
     /// assert_eq!(complete_set.size(), 125);
     /// ```
     pub fn all() -> CodeSet {
         CodeSet {
-            code_bitmap: (1 << 125) - 1
+            code_bitmap: (1 << 125) - 1,
         }
     }
 
@@ -278,7 +302,10 @@ impl CodeSet {
     }
 
     pub fn from_closure(checker: fn(Code) -> bool) -> Self {
-        CodeSet::all().iter().filter(|code| checker(*code)).collect()
+        CodeSet::all()
+            .iter()
+            .filter(|code| checker(*code))
+            .collect()
     }
 
     pub fn contains(self, code: Code) -> bool {
@@ -287,7 +314,8 @@ impl CodeSet {
 
     /// Iterate through all codes in this set.
     pub fn iter(self) -> impl Iterator<Item = Code> {
-        (0..125).map(Code::from_index)
+        (0..125)
+            .map(Code::from_index)
             .map(Result::unwrap)
             .filter(move |code| self.contains(*code))
     }

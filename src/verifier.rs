@@ -5,6 +5,7 @@ use arrayvec::ArrayVec;
 use crate::code::{Code, CodeSet, Order};
 
 /// Get a verifier by its (one-indexed) number in the game.
+#[must_use]
 pub fn get_verifier_by_number(number: usize) -> Verifier {
     let verifiers: [Verifier; 48] = [
         // 1
@@ -300,13 +301,13 @@ pub fn get_verifier_by_number(number: usize) -> Verifier {
             "if the 3 numbers in the code are in ascending order, descending order, or no order",
             &[
                 VerifierOption::from_description_and_closure("ascending order", |code| {
-                    code.ascending_or_descending() == Order::Ascending
+                    code.is_ascending_or_descending() == Order::Ascending
                 }),
                 VerifierOption::from_description_and_closure("descending order", |code| {
-                    code.ascending_or_descending() == Order::Descending
+                    code.is_ascending_or_descending() == Order::Descending
                 }),
                 VerifierOption::from_description_and_closure("no order", |code| {
-                    code.ascending_or_descending() == Order::NoOrder
+                    code.is_ascending_or_descending() == Order::NoOrder
                 }),
             ],
         ),
@@ -767,6 +768,7 @@ pub struct VerifierOption {
 }
 
 impl VerifierOption {
+    #[must_use]
     pub fn code_set(&self) -> CodeSet {
         self.code_set
     }
@@ -813,10 +815,12 @@ impl Debug for Verifier {
 }
 
 impl Verifier {
+    #[must_use]
     pub fn description(&self) -> &'static str {
         self.description
     }
 
+    #[must_use]
     pub fn number_of_options(&self) -> usize {
         self.options.len()
     }

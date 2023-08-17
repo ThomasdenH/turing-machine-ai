@@ -1,6 +1,10 @@
 use std::error::Error;
 
-use turing_machine_ai::{game::Game, gametree::{State, Move, VerifierSolution::*}, code::{CodeError, Code}};
+use turing_machine_ai::{
+    code::Code,
+    game::Game,
+    gametree::{Move, VerifierSolution::*},
+};
 
 #[test]
 fn challenge_b52_o00_b() -> Result<(), Box<dyn Error>> {
@@ -12,12 +16,12 @@ fn challenge_b52_o00_b() -> Result<(), Box<dyn Error>> {
     let (state, _) = state.after_move(move_to_do)?;
 
     let (_, move_to_do) = state.find_best_move();
-    assert_eq!(move_to_do, Move::ChooseVerifierOption(0.into()));
+    assert_eq!(move_to_do, Move::ChooseVerifier(0.into()));
     let (state, _) = state.after_move(move_to_do)?;
     let (state, _) = state.after_move(Move::VerifierSolution(Cross))?;
 
     let (_, move_to_do) = state.find_best_move();
-    assert_eq!(move_to_do, Move::ChooseVerifierOption(2.into()));
+    assert_eq!(move_to_do, Move::ChooseVerifier(2.into()));
     let (state, _) = state.after_move(move_to_do)?;
     let (state, _) = state.after_move(Move::VerifierSolution(Check))?;
 

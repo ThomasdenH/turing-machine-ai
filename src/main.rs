@@ -27,7 +27,7 @@ fn main() {
                 Ok((new_state, None)) => {
                     match move_to_do {
                         gametree::Move::ChooseNewCode(code) => println!("Choose code {:?}.", code),
-                        gametree::Move::ChooseVerifierOption(option) => {
+                        gametree::Move::ChooseVerifier(option) => {
                             println!("Choose verifier {:?}.", option)
                         }
                         gametree::Move::VerifierSolution(_) => panic!(),

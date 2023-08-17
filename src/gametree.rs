@@ -4,7 +4,7 @@ use thiserror::Error;
 
 use crate::{
     code::{Code, CodeSet},
-    game::Game,
+    game::Game, verifier::VerifierOption,
 };
 
 /// A struct representing the current game state. It contains the possible
@@ -86,7 +86,7 @@ impl StateScore {
 pub enum AfterMoveInfo {
     /// The move checked a verifier that did not provide additional
     /// information about the game solution.
-    UselessVerifierCheck
+    UselessVerifierCheck,
 }
 
 impl Ord for StateScore {
@@ -127,7 +127,7 @@ impl Debug for ChosenVerifier {
 pub enum Move {
     ChooseNewCode(Code),
     VerifierSolution(VerifierSolution),
-    ChooseVerifierOption(ChosenVerifier),
+    ChooseVerifier(ChosenVerifier),
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Error, Debug)]
@@ -135,10 +135,11 @@ pub enum AfterMoveError {
     #[error("invalid move for game state")]
     InvalidMoveError,
     #[error("there are no solutions left for this game state")]
-    NoCodesLeft
+    NoCodesLeft,
 }
 
 impl<'a> State<'a> {
+    #[must_use]
     pub fn new(game: &'a Game) -> Self {
         State {
             game,
@@ -155,13 +156,16 @@ impl<'a> State<'a> {
         self.possible_codes
     }
 
+    #[must_use]
     pub fn is_solved(self) -> bool {
         self.possible_codes.size() == 1
     }
 
     /// If solved, returns the solution. Otherwise, it returns `None`.
+    #[must_use]
     pub fn solution(self) -> Option<Code> {
-        self.possible_codes.iter()
+        self.possible_codes
+            .iter()
             .next()
             .filter(|_| self.is_solved())
     }
@@ -170,7 +174,10 @@ impl<'a> State<'a> {
     /// invalid, this function returns an error. In addition to the state
     /// itself, this function will sometimes provide additional information
     /// about the transition as the second argument of the tuple.
-    pub fn after_move(mut self, move_to_do: Move) -> Result<(State<'a>, Option<AfterMoveInfo>), AfterMoveError> {
+    pub fn after_move(
+        mut self,
+        move_to_do: Move,
+    ) -> Result<(State<'a>, Option<AfterMoveInfo>), AfterMoveError> {
         let mut info = None;
         match move_to_do {
             Move::ChooseNewCode(code) => {
@@ -181,7 +188,7 @@ impl<'a> State<'a> {
                 self.codes_guessed += 1;
                 self.has_guessed_one_verifier_for_code = false;
             }
-            Move::ChooseVerifierOption(choose_verifier_option) => {
+            Move::ChooseVerifier(choose_verifier_option) => {
                 if self.is_awaiting_result() {
                     return Err(AfterMoveError::InvalidMoveError);
                 }
@@ -189,38 +196,36 @@ impl<'a> State<'a> {
                 self.verifiers_checked += 1;
             }
             Move::VerifierSolution(verifier_solution) => {
-                if !self.is_awaiting_result() {
-                    return Err(AfterMoveError::InvalidMoveError);
-                }
-                // Eliminate codes
-                let chosen_verifier = self.currently_chosen_verifier.unwrap().0;
+                if let Some(chosen_verifier) = self.currently_chosen_verifier {
+                    // Get all codes that correspond to a verifier option giving the provided answer.
+                    let bitmask_for_solution = self
+                        .game
+                        .verfier(chosen_verifier.0)
+                        .options()
+                        .map(VerifierOption::code_set)
+                        .filter(|code_set| {
+                            let would_give_check =
+                                code_set.contains(self.currently_selected_code.unwrap());
+                            let gives_check = verifier_solution == VerifierSolution::Check;
+                            would_give_check == gives_check
+                        })
+                        .collect::<CodeSet>();
+                    let possible_codes = self.possible_codes;
+                    let new_possible_codes = possible_codes.intersected_with(bitmask_for_solution);
+                    if new_possible_codes == possible_codes {
+                        info = Some(AfterMoveInfo::UselessVerifierCheck);
+                    } else if new_possible_codes.size() == 0 {
+                        return Err(AfterMoveError::NoCodesLeft);
+                    } else {
+                        self.possible_codes = new_possible_codes;
+                    }
 
-                // Get all codes that correspond to a verifier option giving the provided answer.
-                let bitmask_for_solution = self
-                    .game
-                    .verfier(chosen_verifier)
-                    .options()
-                    .map(|verifier_option| verifier_option.code_set())
-                    .filter(|code_set| {
-                        let would_give_check =
-                            code_set.contains(self.currently_selected_code.unwrap());
-                        let gives_check = verifier_solution == VerifierSolution::Check;
-                        would_give_check == gives_check
-                    })
-                    .collect::<CodeSet>();
-                let possible_codes = self.possible_codes;
-                let new_possible_codes = possible_codes.intersected_with(bitmask_for_solution);
-                if new_possible_codes == possible_codes {
-                    info = Some(AfterMoveInfo::UselessVerifierCheck);
-                } else if new_possible_codes.size() == 0 {
-                    return Err(AfterMoveError::NoCodesLeft);
+                    self.currently_chosen_verifier = None;
+                    if self.verifiers_checked == 3 {
+                        self.currently_selected_code = None;
+                    }
                 } else {
-                    self.possible_codes = new_possible_codes;
-                }
-
-                self.currently_chosen_verifier = None;
-                if self.verifiers_checked == 3 {
-                    self.currently_selected_code = None;
+                    return Err(AfterMoveError::InvalidMoveError);
                 }
             }
         }
@@ -228,6 +233,7 @@ impl<'a> State<'a> {
     }
 
     /// Returns true if the game is awaiting a verifier answer.
+    #[must_use]
     pub fn is_awaiting_result(&self) -> bool {
         self.currently_chosen_verifier.is_some()
     }
@@ -250,18 +256,15 @@ impl<'a> State<'a> {
         // Otherwise,
         .chain(
             // Otherwise, if a code is chosen, choose a verifier
-            (0..self.game.verifier_count())
-                .map(|i| Move::ChooseVerifierOption(ChosenVerifier(i as u8)))
+            (0..u8::try_from(self.game.verifier_count()).unwrap())
+                .map(|i| Move::ChooseVerifier(i.into()))
                 .filter(|_| self.currently_selected_code.is_some())
                 .chain(
                     // If the code was used once, or if no code was selected, choose new code
-                    CodeSet::all()
-                        .iter()
-                        .map(Move::ChooseNewCode)
-                        .filter(|_| {
-                            self.currently_selected_code.is_none()
-                                || self.has_guessed_one_verifier_for_code
-                        }),
+                    CodeSet::all().iter().map(Move::ChooseNewCode).filter(|_| {
+                        self.currently_selected_code.is_none()
+                            || self.has_guessed_one_verifier_for_code
+                    }),
                 )
                 .filter(|_| !self.is_awaiting_result()),
         )
@@ -287,7 +290,9 @@ impl<'a> State<'a> {
                 let score = match next_node {
                     Err(AfterMoveError::NoCodesLeft) => StateScore::no_solution(),
                     Err(AfterMoveError::InvalidMoveError) => panic!("invalid move!"),
-                    Ok((_, Some(AfterMoveInfo::UselessVerifierCheck))) => StateScore::useless_verifier_check(),
+                    Ok((_, Some(AfterMoveInfo::UselessVerifierCheck))) => {
+                        StateScore::useless_verifier_check()
+                    }
                     Ok((state, None)) => state.alphabeta(alpha, beta).0,
                 };
                 if score > highest_score {
@@ -309,7 +314,9 @@ impl<'a> State<'a> {
                 let score = match next_node {
                     Err(AfterMoveError::NoCodesLeft) => StateScore::no_solution(),
                     Err(AfterMoveError::InvalidMoveError) => panic!("invalid move"),
-                    Ok((_, Some(AfterMoveInfo::UselessVerifierCheck))) => StateScore::useless_verifier_check(),
+                    Ok((_, Some(AfterMoveInfo::UselessVerifierCheck))) => {
+                        StateScore::useless_verifier_check()
+                    }
                     Ok((state, None)) => state.alphabeta(alpha, beta).0,
                 };
                 if score < lowest_score {
@@ -330,6 +337,10 @@ impl<'a> State<'a> {
     /// Find the best possible move to minimize the maximum amount of codes and
     /// verifier checks needed. The game must be at a state where the player
     /// chooses a code or a verifier.
+    ///
+    /// # Panics
+    /// This function will panic if the state is currently awaiting a verifier
+    /// answer or if the game has already been solved.
     pub fn find_best_move(self) -> (GameScore, Move) {
         assert!(!self.is_awaiting_result() && !self.is_solved());
         // The optimal possible game.

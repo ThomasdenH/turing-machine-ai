@@ -18,8 +18,8 @@ pub struct Game {
 impl Debug for Game {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for (verifier, letter) in self.verifiers.iter().zip('A'..) {
-            writeln!(f, "Verifier {}", letter)?;
-            writeln!(f, "{:?}", verifier)?;
+            writeln!(f, "Verifier {letter}")?;
+            writeln!(f, "{verifier:?}")?;
         }
         Ok(())
     }
@@ -52,6 +52,7 @@ impl Game {
         State::new(self)
     }
 
+    // TODO: Index by custom type?
     pub fn verfier(&self, index: u8) -> &Verifier {
         &self.verifiers[index as usize]
     }
@@ -70,6 +71,7 @@ impl Game {
             .map(|(verifier, choice)| *verifier.option(choice))
     }
 
+    #[must_use]
     pub fn new_from_verifiers(verifiers: Vec<Verifier>) -> Game {
         Game { verifiers }
     }
@@ -83,14 +85,14 @@ impl Game {
         let len = self.verifiers.len();
         iter::successors(
             Some(Assignment {
-                choice: ArrayVec::from_iter(iter::repeat(0).take(len)),
+                choice: iter::repeat(0).take(len).collect(),
             }),
             move |prev| {
                 let mut new = prev.clone();
                 new.choice[0] += 1;
                 for index in 0..len {
                     // Carry to the right
-                    if new.choice[index] >= self.verifiers[index].number_of_options() as u8 {
+                    if usize::from(new.choice[index]) >= self.verifiers[index].number_of_options() {
                         new.choice[index] = 0;
                         if index + 1 >= len {
                             return None;
@@ -122,6 +124,7 @@ impl Game {
     /// Check if the assignment is a possible puzzle solution. This means that
     /// there should be a single code that adheres to the verifiers, and that
     /// none of the verifiers are redundant.
+    #[must_use]
     pub fn is_possible_solution(&self, assignment: &Assignment) -> bool {
         if self.possible_codes_for_assignment(assignment).size() != 1 {
             return false;

@@ -14,7 +14,7 @@ fn test_01() -> Result<(), AfterMoveError> {
     let (game_score, next_move) = state.find_best_move();
     assert_eq!(game_score.codes_guessed, 1);
     assert_eq!(game_score.verifiers_checked, 1);
-    assert_eq!(next_move, Move::ChooseVerifierOption(0.into()));
+    assert_eq!(next_move, Move::ChooseVerifier(0.into()));
     
     let (state, _) = state.after_move(next_move)?;
     assert!(state.is_awaiting_result());
@@ -35,17 +35,17 @@ fn test_02() -> Result<(), AfterMoveError> {
 
     let (state, _) = state.after_move(next_move)?;
     let (_, next_move) = state.find_best_move();
-    assert_eq!(next_move, Move::ChooseVerifierOption(0.into()));
+    assert_eq!(next_move, Move::ChooseVerifier(0.into()));
 
     let (state, _) = state.after_move(next_move)?;
     let (state, _) = state.after_move(Move::VerifierSolution(Cross))?;
     let (_, next_move) = state.find_best_move();
-    assert_eq!(next_move, Move::ChooseVerifierOption(1.into()));
+    assert_eq!(next_move, Move::ChooseVerifier(1.into()));
 
     let (state, _) = state.after_move(next_move)?;
     let (state, _) = state.after_move(Move::VerifierSolution(Check))?;
     let(_, next_move) = state.find_best_move();
-    assert_eq!(next_move, Move::ChooseVerifierOption(3.into()));
+    assert_eq!(next_move, Move::ChooseVerifier(3.into()));
 
     let (state, _) = state.after_move(next_move)?;
     let (state, _) = state.after_move(Move::VerifierSolution(Cross))?;
