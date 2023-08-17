@@ -17,8 +17,8 @@ pub struct State<'a> {
     /// All the codes that are still possible solutions.
     possible_codes: CodeSet,
     currently_selected_code: Option<Code>,
-    currently_chosen_verifier_option: Option<ChosenVerifierOption>,
-    guessed_one_verifier_for_code: bool,
+    currently_chosen_verifier: Option<ChosenVerifier>,
+    has_guessed_one_verifier_for_code: bool,
     codes_guessed: u8,
     verifiers_checked: u8,
 }
@@ -58,6 +58,9 @@ impl StateScore {
         StateScore(u16::MAX)
     }
 
+    /// Get how many codes and verifiers were checked for this game score. If
+    /// the game did not finish for whatever reason, this function will return
+    /// `None`.
     pub fn codes_and_verifiers_checked(self) -> Option<GameScore> {
         if self.0 == u16::MAX {
             None
@@ -78,8 +81,11 @@ impl StateScore {
     }
 }
 
+/// Additional info that may be returned by the function `State::after_move`.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub enum AfterMoveInfo {
+    /// The move checked a verifier that did not provide additional
+    /// information about the game solution.
     UselessVerifierCheck
 }
 
@@ -103,15 +109,15 @@ pub enum VerifierSolution {
 }
 
 #[derive(Eq, PartialEq, Copy, Clone)]
-pub struct ChosenVerifierOption(u8);
+pub struct ChosenVerifier(u8);
 
-impl From<u8> for ChosenVerifierOption {
+impl From<u8> for ChosenVerifier {
     fn from(value: u8) -> Self {
-        ChosenVerifierOption(value)
+        ChosenVerifier(value)
     }
 }
 
-impl Debug for ChosenVerifierOption {
+impl Debug for ChosenVerifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", ('A'..).nth(self.0.into()).unwrap())
     }
@@ -121,7 +127,7 @@ impl Debug for ChosenVerifierOption {
 pub enum Move {
     ChooseNewCode(Code),
     VerifierSolution(VerifierSolution),
-    ChooseVerifierOption(ChosenVerifierOption),
+    ChooseVerifierOption(ChosenVerifier),
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Error, Debug)]
@@ -138,8 +144,8 @@ impl<'a> State<'a> {
             game,
             possible_codes: game.possible_solutions(),
             currently_selected_code: None,
-            currently_chosen_verifier_option: None,
-            guessed_one_verifier_for_code: false,
+            currently_chosen_verifier: None,
+            has_guessed_one_verifier_for_code: false,
             codes_guessed: 0,
             verifiers_checked: 0,
         }
@@ -166,13 +172,13 @@ impl<'a> State<'a> {
                 }
                 self.currently_selected_code = Some(code);
                 self.codes_guessed += 1;
-                self.guessed_one_verifier_for_code = false;
+                self.has_guessed_one_verifier_for_code = false;
             }
             Move::ChooseVerifierOption(choose_verifier_option) => {
                 if self.is_awaiting_result() {
                     return Err(AfterMoveError::InvalidMoveError);
                 }
-                self.currently_chosen_verifier_option = Some(choose_verifier_option);
+                self.currently_chosen_verifier = Some(choose_verifier_option);
                 self.verifiers_checked += 1;
             }
             Move::VerifierSolution(verifier_solution) => {
@@ -180,7 +186,7 @@ impl<'a> State<'a> {
                     return Err(AfterMoveError::InvalidMoveError);
                 }
                 // Eliminate codes
-                let chosen_verifier = self.currently_chosen_verifier_option.unwrap().0;
+                let chosen_verifier = self.currently_chosen_verifier.unwrap().0;
 
                 // Get all codes that correspond to a verifier option giving the provided answer.
                 let bitmask_for_solution = self
@@ -205,7 +211,7 @@ impl<'a> State<'a> {
                     self.possible_codes = new_possible_codes;
                 }
 
-                self.currently_chosen_verifier_option = None;
+                self.currently_chosen_verifier = None;
                 if self.verifiers_checked == 3 {
                     self.currently_selected_code = None;
                 }
@@ -216,7 +222,7 @@ impl<'a> State<'a> {
 
     /// Returns true if the game is awaiting a verifier answer.
     pub fn is_awaiting_result(&self) -> bool {
-        self.currently_chosen_verifier_option.is_some()
+        self.currently_chosen_verifier.is_some()
     }
 
     /// Return all possible moves. Notably these are not verified in every way:
@@ -238,7 +244,7 @@ impl<'a> State<'a> {
         .chain(
             // Otherwise, if a code is chosen, choose a verifier
             (0..self.game.verifier_count())
-                .map(|i| Move::ChooseVerifierOption(ChosenVerifierOption(i as u8)))
+                .map(|i| Move::ChooseVerifierOption(ChosenVerifier(i as u8)))
                 .filter(|_| self.currently_selected_code.is_some())
                 .chain(
                     // If the code was used once, or if no code was selected, choose new code
@@ -247,7 +253,7 @@ impl<'a> State<'a> {
                         .map(Move::ChooseNewCode)
                         .filter(|_| {
                             self.currently_selected_code.is_none()
-                                || self.guessed_one_verifier_for_code
+                                || self.has_guessed_one_verifier_for_code
                         }),
                 )
                 .filter(|_| !self.is_awaiting_result()),
