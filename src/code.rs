@@ -38,21 +38,11 @@ impl Code {
         (usize::from(triangle) - 1) + (usize::from(square) - 1) * 5 + (usize::from(circle) - 1) * 25
     }
 
-    fn from_index(index: usize) -> Result<Self, Error> {
-        if index < 125 {
-            Ok(Code {
-                bits: (1 << index).try_into().unwrap(),
-            })
-        } else {
-            Err(Error::InvalidDigits)
-        }
-    }
-
     /// Get the code with the given digits.
     ///
     /// # Errors
     /// If the provided digits do not lie in the range `1..=5`, the code is
-    /// invalid and the error [`code::Error::InvalidDigits`] will be returned.
+    /// invalid and the error [`Error::InvalidDigits`] will be returned.
     ///
     /// # Examples
     /// ```rust
@@ -144,6 +134,7 @@ impl Code {
     /// assert_eq!(Code::from_digits(2, 3, 2)?.count_digit(2), 2);
     /// # Ok::<(), turing_machine_ai::code::Error>(())
     /// ```
+    #[must_use]
     pub fn count_digit(&self, digit: u8) -> usize {
         usize::from(self.triangle() == digit)
             + usize::from(self.square() == digit)
@@ -276,6 +267,17 @@ impl Set {
     }
 
     /// Insert the given code into this code set.
+    ///
+    /// # Examples
+    /// ```rust
+    /// use turing_machine_ai::code::{Code, Set};
+    ///
+    /// let mut set = Set::empty();
+    /// let code = Code::from_digits(1, 2, 3)?;
+    /// set.insert(code);
+    /// assert!(set.contains(code));
+    /// # Ok::<(), turing_machine_ai::code::Error>(())
+    /// ```
     pub fn insert(&mut self, code: Code) {
         self.code_bitmap |= Set::new_from_code(code).code_bitmap;
     }
@@ -364,13 +366,38 @@ impl Set {
     pub fn contains(self, code: Code) -> bool {
         (self.code_bitmap & code.bits.get()) != 0
     }
+}
 
-    /// Create an iterator that goes through every code in this set.
-    pub fn into_iter(self) -> impl Iterator<Item = Code> {
-        (0..125)
-            .map(Code::from_index)
-            .map(Result::unwrap)
-            .filter(move |code| self.contains(*code))
+impl IntoIterator for Set {
+    type IntoIter = SetIterator;
+    type Item = Code;
+    fn into_iter(self) -> Self::IntoIter {
+        SetIterator {
+            set: self,
+            current: 1,
+        }
+    }
+}
+
+/// The iterator for a set.
+pub struct SetIterator {
+    set: Set,
+    current: u128,
+}
+
+impl Iterator for SetIterator {
+    type Item = Code;
+    fn next(&mut self) -> Option<Self::Item> {
+        while self.current < (1 << 125) {
+            let code = Code {
+                bits: self.current.try_into().unwrap(),
+            };
+            self.current <<= 1;
+            if self.set.contains(code) {
+                return Some(code);
+            }
+        }
+        None
     }
 }
 

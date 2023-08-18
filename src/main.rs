@@ -10,7 +10,10 @@ fn main() {
 
     let mut state = State::new(&game);
     while !state.is_solved() {
-        println!("There are still {} possible codes.", state.possible_codes().size());
+        println!(
+            "There are still {} possible codes.",
+            state.possible_codes().size()
+        );
         if !state.is_awaiting_result() {
             let (score, move_to_do) = state.find_best_move();
             println!(

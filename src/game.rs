@@ -4,7 +4,8 @@ use arrayvec::ArrayVec;
 
 use crate::{
     code::Set,
-    verifier::{Intersection, Verifier, VerifierOption, get_verifier_by_number}, gametree::State,
+    gametree::State,
+    verifier::{get_verifier_by_number, Intersection, Verifier, VerifierOption},
 };
 
 /// The maximum amount of verifiers allowed in a game.
@@ -48,6 +49,21 @@ impl Assignment {
     }
 }
 
+#[derive(Eq, PartialEq, Copy, Clone)]
+pub struct ChosenVerifier(usize);
+
+impl From<usize> for ChosenVerifier {
+    fn from(value: usize) -> Self {
+        ChosenVerifier(value)
+    }
+}
+
+impl Debug for ChosenVerifier {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", ('A'..).nth(self.0.into()).unwrap())
+    }
+}
+
 impl Game {
     #[must_use]
     pub fn starting_state(&self) -> State<'_> {
@@ -56,8 +72,12 @@ impl Game {
 
     // TODO: Index by custom type?
     #[must_use]
-    pub fn verfier(&self, index: u8) -> &Verifier {
-        &self.verifiers[index as usize]
+    pub fn verfier(&self, index: ChosenVerifier) -> &Verifier {
+        &self.verifiers[usize::from(index.0)]
+    }
+
+    pub fn iter_verifier_choices(&self) -> impl Iterator<Item = ChosenVerifier> {
+        (0..self.verifiers.len()).map(ChosenVerifier)
     }
 
     #[must_use]
@@ -82,7 +102,9 @@ impl Game {
 
     #[must_use]
     pub fn new_from_verifier_numbers(verifier_numbers: impl Iterator<Item = usize>) -> Game {
-        Game { verifiers: verifier_numbers.map(get_verifier_by_number).collect() }
+        Game {
+            verifiers: verifier_numbers.map(get_verifier_by_number).collect(),
+        }
     }
 
     /// Get all assignments, regardless of their validity.

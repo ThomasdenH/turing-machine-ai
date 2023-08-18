@@ -4,7 +4,8 @@ use thiserror::Error;
 
 use crate::{
     code::{Code, Set},
-    game::Game, verifier::VerifierOption,
+    game::{ChosenVerifier, Game},
+    verifier::VerifierOption,
 };
 
 /// A struct representing the current game state. It contains the possible
@@ -108,21 +109,6 @@ pub enum VerifierSolution {
     Check,
 }
 
-#[derive(Eq, PartialEq, Copy, Clone)]
-pub struct ChosenVerifier(u8);
-
-impl From<u8> for ChosenVerifier {
-    fn from(value: u8) -> Self {
-        ChosenVerifier(value)
-    }
-}
-
-impl Debug for ChosenVerifier {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", ('A'..).nth(self.0.into()).unwrap())
-    }
-}
-
 #[derive(Eq, PartialEq, Clone, Copy, Debug)]
 pub enum Move {
     ChooseNewCode(Code),
@@ -200,7 +186,7 @@ impl<'a> State<'a> {
                     // Get all codes that correspond to a verifier option giving the provided answer.
                     let bitmask_for_solution = self
                         .game
-                        .verfier(chosen_verifier.0)
+                        .verfier(chosen_verifier)
                         .options()
                         .map(VerifierOption::code_set)
                         .filter(|code_set| {
@@ -256,8 +242,9 @@ impl<'a> State<'a> {
         // Otherwise,
         .chain(
             // Otherwise, if a code is chosen, choose a verifier
-            (0..u8::try_from(self.game.verifier_count()).unwrap())
-                .map(|i| Move::ChooseVerifier(i.into()))
+            self.game
+                .iter_verifier_choices()
+                .map(Move::ChooseVerifier)
                 .filter(|_| self.currently_selected_code.is_some())
                 .chain(
                     // If the code was used once, or if no code was selected, choose new code

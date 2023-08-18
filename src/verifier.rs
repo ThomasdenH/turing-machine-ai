@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use arrayvec::ArrayVec;
 
-use crate::code::{Code, Set, Order};
+use crate::code::{Code, Order, Set};
 
 /// Get a verifier by its (one-indexed) number in the game.
 #[must_use]
