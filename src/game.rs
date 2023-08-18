@@ -3,7 +3,7 @@ use std::{fmt::Debug, iter};
 use arrayvec::ArrayVec;
 
 use crate::{
-    code::CodeSet,
+    code::Set,
     verifier::{Intersection, Verifier, VerifierOption, get_verifier_by_number}, gametree::State,
 };
 
@@ -11,7 +11,7 @@ use crate::{
 const MAX_VERIFIERS: usize = 6;
 
 /// A game layout, consisting of the chosen verifiers.
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct Game {
     verifiers: Vec<Verifier>,
 }
@@ -29,7 +29,7 @@ impl Debug for Game {
 /// A particular assignment for a game. For example, this might indicate that
 /// for the first verifier, the second option is selected, for the second
 /// verifier the third option, etc.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash)]
 pub struct Assignment {
     choice: ArrayVec<u8, MAX_VERIFIERS>,
 }
@@ -112,7 +112,7 @@ impl Game {
 
     /// Get all codes that adhere to a particular assignment.
     #[must_use]
-    pub fn possible_codes_for_assignment(&self, assignment: &Assignment) -> CodeSet {
+    pub fn possible_codes_for_assignment(&self, assignment: &Assignment) -> Set {
         self.verifiers
             .iter()
             .zip(assignment.choices())
@@ -156,10 +156,10 @@ impl Game {
     /// Get all possible solutions, i.e. those codes that correspond to a
     /// verifier result that have exactly one solution.
     #[must_use]
-    pub fn possible_solutions(&self) -> CodeSet {
+    pub fn possible_solutions(&self) -> Set {
         self.all_assignments()
             .filter(|assignment| self.is_possible_solution(assignment))
             .map(|assignment| self.possible_codes_for_assignment(&assignment))
-            .fold(CodeSet::empty(), CodeSet::union_with)
+            .fold(Set::empty(), Set::union_with)
     }
 }

@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use thiserror::Error;
 
 use crate::{
-    code::{Code, CodeSet},
+    code::{Code, Set},
     game::Game, verifier::VerifierOption,
 };
 
@@ -15,7 +15,7 @@ use crate::{
 pub struct State<'a> {
     game: &'a Game,
     /// All the codes that are still possible solutions.
-    possible_codes: CodeSet,
+    possible_codes: Set,
     currently_selected_code: Option<Code>,
     currently_chosen_verifier: Option<ChosenVerifier>,
     has_guessed_one_verifier_for_code: bool,
@@ -152,7 +152,7 @@ impl<'a> State<'a> {
         }
     }
 
-    pub fn possible_codes(&self) -> CodeSet {
+    pub fn possible_codes(self) -> Set {
         self.possible_codes
     }
 
@@ -165,7 +165,7 @@ impl<'a> State<'a> {
     #[must_use]
     pub fn solution(self) -> Option<Code> {
         self.possible_codes
-            .iter()
+            .into_iter()
             .next()
             .filter(|_| self.is_solved())
     }
@@ -209,7 +209,7 @@ impl<'a> State<'a> {
                             let gives_check = verifier_solution == VerifierSolution::Check;
                             would_give_check == gives_check
                         })
-                        .collect::<CodeSet>();
+                        .collect::<Set>();
                     let possible_codes = self.possible_codes;
                     let new_possible_codes = possible_codes.intersected_with(bitmask_for_solution);
                     if new_possible_codes == possible_codes {
@@ -261,7 +261,7 @@ impl<'a> State<'a> {
                 .filter(|_| self.currently_selected_code.is_some())
                 .chain(
                     // If the code was used once, or if no code was selected, choose new code
-                    CodeSet::all().iter().map(Move::ChooseNewCode).filter(|_| {
+                    Set::all().into_iter().map(Move::ChooseNewCode).filter(|_| {
                         self.currently_selected_code.is_none()
                             || self.has_guessed_one_verifier_for_code
                     }),
@@ -270,6 +270,9 @@ impl<'a> State<'a> {
         )
     }
 
+    /// Returns whether the state demands maximizing the score. This
+    /// corresponds to those states where the player must do a turn as opposed
+    /// to waiting for a verifier answer.
     fn is_maximizing_score(self) -> bool {
         !self.is_awaiting_result()
     }

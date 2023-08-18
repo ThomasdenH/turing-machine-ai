@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use arrayvec::ArrayVec;
 
-use crate::code::{Code, CodeSet, Order};
+use crate::code::{Code, Set, Order};
 
 /// Get a verifier by its (one-indexed) number in the game.
 #[must_use]
@@ -490,13 +490,13 @@ pub fn get_verifier_by_number(number: usize) -> Verifier {
             "the sum of all the numbers is a multiple of 3 or 4 or 5",
             &[
                 VerifierOption::from_description_and_closure("△ + □ + ○ = 3x", |code| {
-                    code.sum() % 3 == 0
+                    code.digit_sum() % 3 == 0
                 }),
                 VerifierOption::from_description_and_closure("△ + □ + ○ = 4x", |code| {
-                    code.sum() % 4 == 0
+                    code.digit_sum() % 4 == 0
                 }),
                 VerifierOption::from_description_and_closure("△ + □ + ○ = 5x", |code| {
-                    code.sum() % 5 == 0
+                    code.digit_sum() % 5 == 0
                 }),
             ],
         ),
@@ -761,15 +761,15 @@ pub fn get_verifier_by_number(number: usize) -> Verifier {
 
 const MAX_VERIFIER_OPTIONS: usize = 9;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
 pub struct VerifierOption {
     pub(crate) description: &'static str,
-    code_set: CodeSet,
+    code_set: Set,
 }
 
 impl VerifierOption {
     #[must_use]
-    pub fn code_set(&self) -> CodeSet {
+    pub fn code_set(&self) -> Set {
         self.code_set
     }
 
@@ -779,7 +779,7 @@ impl VerifierOption {
     ) -> VerifierOption {
         VerifierOption {
             description,
-            code_set: CodeSet::from_closure(checker),
+            code_set: Set::from_closure(checker),
         }
     }
 }
@@ -789,16 +789,16 @@ pub(crate) trait Intersection {
     fn intersect(self) -> Self::To;
 }
 
-impl<T: Iterator<Item = CodeSet>> Intersection for T {
-    type To = CodeSet;
+impl<T: Iterator<Item = Set>> Intersection for T {
+    type To = Set;
     fn intersect(self) -> Self::To {
-        self.fold(CodeSet::all(), |still_possible_codes, new_code_set| {
+        self.fold(Set::all(), |still_possible_codes, new_code_set| {
             still_possible_codes.intersected_with(new_code_set)
         })
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Eq, PartialEq, Hash)]
 pub struct Verifier {
     description: &'static str,
     options: ArrayVec<VerifierOption, MAX_VERIFIER_OPTIONS>,

@@ -68,6 +68,6 @@ fn main() {
 
     println!(
         "Solved! Solution: {:?}",
-        state.possible_codes().iter().next().unwrap()
+        state.possible_codes().into_iter().next().unwrap()
     );
 }

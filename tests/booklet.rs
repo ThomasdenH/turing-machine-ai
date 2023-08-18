@@ -21,7 +21,7 @@ fn test_01() -> Result<(), AfterMoveError> {
     
     let (state, _) = state.after_move(Move::VerifierSolution(Cross))?;
     assert!(state.is_solved());
-    assert_eq!(state.possible_codes().iter().next(), Some(Code::from_digits(2, 4, 1).unwrap()));
+    assert_eq!(state.possible_codes().into_iter().next(), Some(Code::from_digits(2, 4, 1).unwrap()));
 
     Ok(())
 }
@@ -50,7 +50,7 @@ fn test_02() -> Result<(), AfterMoveError> {
     let (state, _) = state.after_move(next_move)?;
     let (state, _) = state.after_move(Move::VerifierSolution(Cross))?;
     assert!(state.is_solved());
-    assert_eq!(state.possible_codes().iter().next(), Some(Code::from_digits(4, 3, 5).unwrap()));
+    assert_eq!(state.possible_codes().into_iter().next(), Some(Code::from_digits(4, 3, 5).unwrap()));
 
     Ok(())
 }

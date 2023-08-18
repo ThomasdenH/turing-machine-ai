@@ -1,26 +1,35 @@
+//! This module contains functionality for working with codes and sets of codes.
+
 use std::fmt::Debug;
 use std::num::NonZeroU128;
 
 use thiserror::Error;
 
-/// A Turing Machine code, represented by a flipped bit in a `u128`. This is
-/// the most efficient format for use with `CodeSet` since it allows for fast
+/// A Turing Machine code, represented by a flipped bit in a [`u128`]. This is
+/// the most efficient format for use with [`Set`] since it allows for fast
 /// set inclusion checks.
-#[derive(Eq, PartialEq, Copy, Clone)]
+#[derive(Eq, PartialEq, Copy, Clone, Hash)]
 pub struct Code {
     bits: NonZeroU128,
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Debug, Error)]
+/// This error may be returned when attempting to construct an invalid code.
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Error, Hash)]
 pub enum Error {
+    /// Returned when attempting to construct an invalid code.
     #[error("the provided digits do not form a valid code")]
     InvalidDigits,
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
+/// Returned by [`Code::is_ascending_or_descending`] to indicate whether the code
+/// has an ascending or descending sequence.
+#[derive(Clone, Copy, Eq, PartialEq, Debug, Hash)]
 pub enum Order {
+    /// The code has an ascending sequence, i.e. `(1, 2, 3)`.
     Ascending,
+    /// The code has a descending sequence, i.e. `(4, 3, 2)`.
     Descending,
+    /// The code has neither an ascending or descending sequence.
     NoOrder,
 }
 
@@ -40,17 +49,18 @@ impl Code {
     }
 
     /// Get the code with the given digits.
-    /// 
+    ///
     /// # Errors
     /// If the provided digits do not lie in the range `1..=5`, the code is
-    /// invalid and the error `code::Error::InvalidDigits` will be returned.
-    /// 
+    /// invalid and the error [`code::Error::InvalidDigits`] will be returned.
+    ///
     /// # Examples
     /// ```rust
     /// use turing_machine_ai::code;
     /// assert!(code::Code::from_digits(1, 2, 3).is_ok());
     /// assert_eq!(code::Code::from_digits(3, 4, 9), Err(code::Error::InvalidDigits));
     /// ```
+    #[allow(clippy::missing_panics_doc)]
     pub fn from_digits(triangle: u8, square: u8, circle: u8) -> Result<Self, Error> {
         if !(1..=5).contains(&triangle) || !(1..=5).contains(&square) || !(1..=5).contains(&circle)
         {
@@ -91,22 +101,34 @@ impl Code {
         )
     }
 
+    /// Returns the digit for the triangle symbol in this code.
     #[must_use]
     pub fn triangle(self) -> u8 {
         self.digits().0
     }
 
+    /// Returns the digit for the square symbol in this code.
     #[must_use]
     pub fn square(self) -> u8 {
         self.digits().1
     }
 
+    /// Returns the digit for the circle symbol in this code.
     #[must_use]
     pub fn circle(self) -> u8 {
         self.digits().2
     }
 
-    pub fn sum(self) -> u8 {
+    /// Get the sum of the digits.
+    ///
+    /// ```rust
+    /// use turing_machine_ai::code::Code;
+    /// let code = Code::from_digits(5, 2, 4)?;
+    /// assert_eq!(code.digit_sum(), 11);
+    /// # Ok::<(), turing_machine_ai::code::Error>(())
+    /// ```
+    #[must_use]
+    pub fn digit_sum(self) -> u8 {
         let (a, b, c) = self.digits();
         a + b + c
     }
@@ -137,6 +159,7 @@ impl Code {
     /// assert_eq!(Code::from_digits(2, 3, 4)?.count_even(), 2);
     /// # Ok::<(), turing_machine_ai::code::Error>(())
     /// ```
+    #[must_use]
     pub fn count_even(&self) -> usize {
         usize::from(self.triangle() % 2 == 0)
             + usize::from(self.square() % 2 == 0)
@@ -147,13 +170,13 @@ impl Code {
     /// verifier 25.
     #[must_use]
     pub fn sequence_ascending_or_descending(&self) -> usize {
-        match (
-            self.triangle() as i8 - self.square() as i8,
-            self.square() as i8 - self.circle() as i8,
-        ) {
-            (1, 1) | (-1, -1) => 3,
-            (1 | -1, _) | (_, 1 | -1) => 2,
-            _ => 0,
+        let (t, s, c) = self.digits();
+        if (t + 1 == s && s + 1 == c) || (t == s + 1 && s == c + 1) {
+            3
+        } else if t + 1 == s || s + 1 == c || t == s + 1 || s == c + 1 {
+            2
+        } else {
+            0
         }
     }
 
@@ -188,6 +211,7 @@ impl Code {
     /// assert_eq!(Code::from_digits(1, 2, 5)?.repeating_numbers(), 0);
     /// # Ok::<(), turing_machine_ai::code::Error>(())
     /// ```
+    #[must_use]
     pub fn repeating_numbers(self) -> usize {
         match self.digits() {
             (a, b, c) if a == b && b == c => 2,
@@ -226,41 +250,41 @@ impl Debug for Code {
 }
 
 /// A struct representing a set of codes.
-#[derive(Copy, Clone, Eq, PartialEq)]
-pub struct CodeSet {
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Default)]
+pub struct Set {
     code_bitmap: u128,
 }
 
-impl Debug for CodeSet {
+impl Debug for Set {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "△ □ ○")?;
-        for code in self.iter() {
+        for code in self.into_iter() {
             writeln!(f, "{} {} {}", code.triangle(), code.square(), code.circle())?;
         }
         Ok(())
     }
 }
 
-impl CodeSet {
+impl Set {
     /// Create a new code set, containing only the provided code. This is a
     /// free operation.
     #[must_use]
     pub fn new_from_code(code: Code) -> Self {
-        CodeSet {
+        Set {
             code_bitmap: code.bits.get(),
         }
     }
 
     /// Insert the given code into this code set.
     pub fn insert(&mut self, code: Code) {
-        self.code_bitmap |= CodeSet::new_from_code(code).code_bitmap;
+        self.code_bitmap |= Set::new_from_code(code).code_bitmap;
     }
 
     /// Get a new code set, that contains only the elements contained in both
     /// this set, as well as the provided set.
     #[must_use]
-    pub fn intersected_with(self, code_set: CodeSet) -> CodeSet {
-        CodeSet {
+    pub fn intersected_with(self, code_set: Set) -> Set {
+        Set {
             code_bitmap: self.code_bitmap & code_set.code_bitmap,
         }
     }
@@ -268,8 +292,8 @@ impl CodeSet {
     /// Get a new code set that contains all elements contained in either this
     /// set, or the provided set.
     #[must_use]
-    pub fn union_with(self, code_set: CodeSet) -> CodeSet {
-        CodeSet {
+    pub fn union_with(self, code_set: Set) -> Set {
+        Set {
             code_bitmap: self.code_bitmap | code_set.code_bitmap,
         }
     }
@@ -278,27 +302,28 @@ impl CodeSet {
     ///
     /// # Example
     /// ```rust
-    /// use turing_machine_ai::code::CodeSet;
+    /// use turing_machine_ai::code::Set;
     ///
-    /// let empty_set = CodeSet::empty();
+    /// let empty_set = Set::empty();
     /// assert_eq!(empty_set.size(), 0);
     /// ```
     #[must_use]
-    pub fn empty() -> CodeSet {
-        CodeSet { code_bitmap: 0 }
+    pub fn empty() -> Set {
+        Set { code_bitmap: 0 }
     }
 
     /// Return a set containing all codes.
     ///
     /// # Example
     /// ```rust
-    /// use turing_machine_ai::code::CodeSet;
+    /// use turing_machine_ai::code::Set;
     ///
-    /// let complete_set = CodeSet::all();
+    /// let complete_set = Set::all();
     /// assert_eq!(complete_set.size(), 125);
     /// ```
-    pub fn all() -> CodeSet {
-        CodeSet {
+    #[must_use]
+    pub fn all() -> Set {
+        Set {
             code_bitmap: (1 << 125) - 1,
         }
     }
@@ -307,27 +332,41 @@ impl CodeSet {
     ///
     /// # Example
     /// ```
-    /// use turing_machine_ai::code::CodeSet;
-    /// assert_eq!(CodeSet::all().size(), 125);
-    /// assert_eq!(CodeSet::empty().size(), 0);
+    /// use turing_machine_ai::code::Set;
+    /// assert_eq!(Set::all().size(), 125);
+    /// assert_eq!(Set::empty().size(), 0);
     /// ```
+    #[must_use]
     pub fn size(self) -> u32 {
         self.code_bitmap.count_ones()
     }
 
+    /// Construct a new code set based on a closure that returns `true` for any
+    /// code that must be in the set.
     pub fn from_closure(checker: fn(Code) -> bool) -> Self {
-        CodeSet::all()
-            .iter()
+        Set::all()
+            .into_iter()
             .filter(|code| checker(*code))
             .collect()
     }
 
+    /// Returns whether the given code is part of this set.
+    /// ```rust
+    /// use turing_machine_ai::code::{Set, Code};
+    /// let code_1 = Code::from_digits(1, 2, 3)?;
+    /// let code_2 = Code::from_digits(3, 3, 5)?;
+    /// let set = Set::new_from_code(code_1);
+    /// assert!(set.contains(code_1));
+    /// assert!(!set.contains(code_2));
+    /// # Ok::<(), turing_machine_ai::code::Error>(())
+    /// ```
+    #[must_use]
     pub fn contains(self, code: Code) -> bool {
         (self.code_bitmap & code.bits.get()) != 0
     }
 
-    /// Iterate through all codes in this set.
-    pub fn iter(self) -> impl Iterator<Item = Code> {
+    /// Create an iterator that goes through every code in this set.
+    pub fn into_iter(self) -> impl Iterator<Item = Code> {
         (0..125)
             .map(Code::from_index)
             .map(Result::unwrap)
@@ -335,10 +374,10 @@ impl CodeSet {
     }
 }
 
-impl FromIterator<Code> for CodeSet {
+impl FromIterator<Code> for Set {
     /// Create a new code set containing all codes in the iterator.
     fn from_iter<T: IntoIterator<Item = Code>>(iter: T) -> Self {
-        let mut code_set = CodeSet::empty();
+        let mut code_set = Set::empty();
         for code in iter {
             code_set.insert(code);
         }
@@ -346,9 +385,9 @@ impl FromIterator<Code> for CodeSet {
     }
 }
 
-impl FromIterator<CodeSet> for CodeSet {
-    fn from_iter<T: IntoIterator<Item = CodeSet>>(iter: T) -> Self {
-        let mut code_set = CodeSet::empty();
+impl FromIterator<Set> for Set {
+    fn from_iter<T: IntoIterator<Item = Set>>(iter: T) -> Self {
+        let mut code_set = Set::empty();
         for new_code_set in iter {
             code_set = code_set.union_with(new_code_set);
         }
@@ -358,11 +397,11 @@ impl FromIterator<CodeSet> for CodeSet {
 
 #[cfg(test)]
 mod tests {
-    use super::{Code, CodeSet};
+    use super::{Code, Set};
 
     #[test]
     fn test_code_set() {
-        let code_set = CodeSet::from_closure(|code| code.triangle() == 1);
+        let code_set = Set::from_closure(|code| code.triangle() == 1);
         assert!(code_set.contains(Code::from_digits(1, 2, 3).unwrap()));
         assert!(!code_set.contains(Code::from_digits(3, 2, 1).unwrap()));
     }
