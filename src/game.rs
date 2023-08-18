@@ -11,6 +11,7 @@ use crate::{
 const MAX_VERIFIERS: usize = 6;
 
 /// A game layout, consisting of the chosen verifiers.
+#[derive(Clone)]
 pub struct Game {
     verifiers: Vec<Verifier>,
 }
@@ -48,15 +49,18 @@ impl Assignment {
 }
 
 impl Game {
+    #[must_use]
     pub fn starting_state(&self) -> State<'_> {
         State::new(self)
     }
 
     // TODO: Index by custom type?
+    #[must_use]
     pub fn verfier(&self, index: u8) -> &Verifier {
         &self.verifiers[index as usize]
     }
 
+    #[must_use]
     pub fn verifier_count(&self) -> usize {
         self.verifiers.len()
     }
@@ -76,6 +80,7 @@ impl Game {
         Game { verifiers }
     }
 
+    #[must_use]
     pub fn new_from_verifier_numbers(verifier_numbers: impl Iterator<Item = usize>) -> Game {
         Game { verifiers: verifier_numbers.map(get_verifier_by_number).collect() }
     }
@@ -106,6 +111,7 @@ impl Game {
     }
 
     /// Get all codes that adhere to a particular assignment.
+    #[must_use]
     pub fn possible_codes_for_assignment(&self, assignment: &Assignment) -> CodeSet {
         self.verifiers
             .iter()
@@ -149,10 +155,11 @@ impl Game {
 
     /// Get all possible solutions, i.e. those codes that correspond to a
     /// verifier result that have exactly one solution.
+    #[must_use]
     pub fn possible_solutions(&self) -> CodeSet {
         self.all_assignments()
             .filter(|assignment| self.is_possible_solution(assignment))
             .map(|assignment| self.possible_codes_for_assignment(&assignment))
-            .fold(CodeSet::empty(), |all, new| all.union_with(new))
+            .fold(CodeSet::empty(), CodeSet::union_with)
     }
 }

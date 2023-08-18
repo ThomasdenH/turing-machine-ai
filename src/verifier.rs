@@ -825,6 +825,7 @@ impl Verifier {
         self.options.len()
     }
 
+    #[must_use]
     pub fn from_description_and_options(
         description: &'static str,
         options: &[VerifierOption],
@@ -835,6 +836,7 @@ impl Verifier {
         }
     }
 
+    #[must_use]
     pub fn option(&self, choice: u8) -> &VerifierOption {
         &self.options[choice as usize]
     }

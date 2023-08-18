@@ -12,7 +12,7 @@ pub struct Code {
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Error)]
-pub enum CodeError {
+pub enum Error {
     #[error("the provided digits do not form a valid code")]
     InvalidDigits,
 }
@@ -29,21 +29,32 @@ impl Code {
         (usize::from(triangle) - 1) + (usize::from(square) - 1) * 5 + (usize::from(circle) - 1) * 25
     }
 
-    fn from_index(index: usize) -> Result<Self, CodeError> {
+    fn from_index(index: usize) -> Result<Self, Error> {
         if index < 125 {
             Ok(Code {
                 bits: (1 << index).try_into().unwrap(),
             })
         } else {
-            Err(CodeError::InvalidDigits)
+            Err(Error::InvalidDigits)
         }
     }
 
-    #[must_use]
-    pub fn from_digits(triangle: u8, square: u8, circle: u8) -> Result<Self, CodeError> {
+    /// Get the code with the given digits.
+    /// 
+    /// # Errors
+    /// If the provided digits do not lie in the range `1..=5`, the code is
+    /// invalid and the error `code::Error::InvalidDigits` will be returned.
+    /// 
+    /// # Examples
+    /// ```rust
+    /// use turing_machine_ai::code;
+    /// assert!(code::Code::from_digits(1, 2, 3).is_ok());
+    /// assert_eq!(code::Code::from_digits(3, 4, 9), Err(code::Error::InvalidDigits));
+    /// ```
+    pub fn from_digits(triangle: u8, square: u8, circle: u8) -> Result<Self, Error> {
         if !(1..=5).contains(&triangle) || !(1..=5).contains(&square) || !(1..=5).contains(&circle)
         {
-            Err(CodeError::InvalidDigits)
+            Err(Error::InvalidDigits)
         } else {
             Ok(Code {
                 bits: (1 << Self::digits_to_index(triangle, square, circle))
@@ -62,9 +73,12 @@ impl Code {
     ///
     /// let code_2 = Code::from_digits(1, 3, 4)?;
     /// assert_eq!(code_2.digits(), (1, 3, 4));
-    /// # Ok::<(), turing_machine_ai::code::CodeError>(())
+    /// # Ok::<(), turing_machine_ai::code::Error>(())
     /// ```
     #[must_use]
+    // It is not possible to make this function panic, since all digits will
+    // lie between 1-5.
+    #[allow(clippy::missing_panics_doc)]
     pub fn digits(self) -> (u8, u8, u8) {
         let index = self.bits.trailing_zeros();
         let triangle = (index % 5) + 1;
@@ -106,7 +120,7 @@ impl Code {
     ///
     /// assert_eq!(Code::from_digits(2, 3, 4)?.count_digit(2), 1);
     /// assert_eq!(Code::from_digits(2, 3, 2)?.count_digit(2), 2);
-    /// # Ok::<(), turing_machine_ai::code::CodeError>(())
+    /// # Ok::<(), turing_machine_ai::code::Error>(())
     /// ```
     pub fn count_digit(&self, digit: u8) -> usize {
         usize::from(self.triangle() == digit)
@@ -121,7 +135,7 @@ impl Code {
     /// use turing_machine_ai::code::Code;
     ///
     /// assert_eq!(Code::from_digits(2, 3, 4)?.count_even(), 2);
-    /// # Ok::<(), turing_machine_ai::code::CodeError>(())
+    /// # Ok::<(), turing_machine_ai::code::Error>(())
     /// ```
     pub fn count_even(&self) -> usize {
         usize::from(self.triangle() % 2 == 0)
@@ -149,7 +163,7 @@ impl Code {
     /// assert_eq!(Code::from_digits(2, 3, 4)?.sequence_ascending(), 3);
     /// assert_eq!(Code::from_digits(2, 3, 3)?.sequence_ascending(), 2);
     /// assert_eq!(Code::from_digits(1, 3, 5)?.sequence_ascending(), 0);
-    /// # Ok::<(), turing_machine_ai::code::CodeError>(())
+    /// # Ok::<(), turing_machine_ai::code::Error>(())
     /// ```
     #[must_use]
     pub fn sequence_ascending(self) -> usize {
@@ -172,7 +186,7 @@ impl Code {
     /// assert_eq!(Code::from_digits(1, 1, 2)?.repeating_numbers(), 1);
     /// assert_eq!(Code::from_digits(1, 2, 1)?.repeating_numbers(), 1);
     /// assert_eq!(Code::from_digits(1, 2, 5)?.repeating_numbers(), 0);
-    /// # Ok::<(), turing_machine_ai::code::CodeError>(())
+    /// # Ok::<(), turing_machine_ai::code::Error>(())
     /// ```
     pub fn repeating_numbers(self) -> usize {
         match self.digits() {
@@ -189,7 +203,7 @@ impl Code {
     /// assert_eq!(Code::from_digits(1, 3, 5)?.is_ascending_or_descending(), Order::Ascending);
     /// assert_eq!(Code::from_digits(4, 2, 1)?.is_ascending_or_descending(), Order::Descending);
     /// assert_eq!(Code::from_digits(2, 3, 1)?.is_ascending_or_descending(), Order::NoOrder);
-    /// # Ok::<(), turing_machine_ai::code::CodeError>(())
+    /// # Ok::<(), turing_machine_ai::code::Error>(())
     /// ```
     #[must_use]
     pub fn is_ascending_or_descending(self) -> Order {
