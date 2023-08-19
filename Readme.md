@@ -1,3 +1,6 @@
+[![crates.io](https://img.shields.io/crates/v/turing_machine_ai.svg)](https://crates.io/crates/turing-machine-ai)
+[![docs.rs](https://img.shields.io/docsrs/turing_machine_ai)](https://docs.rs/turing-machine-ai/)
+
 # Turing Machine AI
 
 An AI for the Turing Machine board game!
