@@ -4,11 +4,11 @@ version = "0.1.0"
 edition = "2021"
 authors = ["Thomas den Hollander"]
 license = "MIT OR Apache-2.0"
+repository = "https://github.com/ThomasdenH/turing-machine-ai"
+description = "Tools and an AI for the Turing Machine board game"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 arrayvec = "0.7"
-itertools = "0.11"
-bitmaps = "3"
 thiserror = "1.0"
