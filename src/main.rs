@@ -22,23 +22,23 @@ fn main() {
             );
             match state.after_move(move_to_do) {
                 Err(AfterMoveError::NoCodesLeft) => {
-                    println!("There are no possible codes left.")
+                    println!("There are no possible codes left.");
                 }
                 Err(AfterMoveError::InvalidMoveError) => {
                     panic!("Invalid move!");
                 }
                 Ok((new_state, None)) => {
                     match move_to_do {
-                        gametree::Move::ChooseNewCode(code) => println!("Choose code {:?}.", code),
+                        gametree::Move::ChooseNewCode(code) => println!("Choose code {code:?}."),
                         gametree::Move::ChooseVerifier(option) => {
-                            println!("Choose verifier {:?}.", option)
+                            println!("Choose verifier {option:?}.")
                         }
                         gametree::Move::VerifierSolution(_) => panic!(),
                     }
                     state = new_state;
                 }
                 Ok((_, Some(AfterMoveInfo::UselessVerifierCheck))) => {
-                    println!("The chosen verifier does not give any new information.")
+                    println!("The chosen verifier does not give any new information.");
                 }
             }
         } else {

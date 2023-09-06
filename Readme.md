@@ -47,6 +47,16 @@ fn main() -> Result<(), Box<dyn Error>> {
 }
 ```
 
+## Theory
+
+This AI is based on the realisation that all deductions can be made at the start of the game, from the verifiers alone. As a first step then, a set is produced of all codes that uniquely correspond to a verifier outcome, and where no verifier is useless.
+
+This gives a set of possible codes that normally small enough to exhaustively search for the best course of action. This is not a trivial search problem, since which verifier to check for a code may depend on the result of the previous check. As such a chosen code must work for multiple paths.
+
+The search is an exhaustive min-max tree search with alpha-beta pruning, with some additional heuristics. Perhaps the most important restriction is that every check should narrow down the number of possible codes. If no verifier provides information, a new code should be picked instead of doing a useless verifier check. This gives a bound on the number of actions to take.
+
+The code is made efficient by packing sets of codes into `u128` (there are 5*5*5 codes), which makes operations on sets very quick and heapless.
+
 ## License
 
 Licensed under either of

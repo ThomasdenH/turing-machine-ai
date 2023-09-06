@@ -60,7 +60,7 @@ impl From<usize> for ChosenVerifier {
 
 impl Debug for ChosenVerifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", ('A'..).nth(self.0.into()).unwrap())
+        write!(f, "{}", ('A'..).nth(self.0).unwrap())
     }
 }
 
@@ -70,16 +70,24 @@ impl Game {
         State::new(self)
     }
 
-    // TODO: Index by custom type?
     #[must_use]
     pub fn verfier(&self, index: ChosenVerifier) -> &Verifier {
-        &self.verifiers[usize::from(index.0)]
+        &self.verifiers[index.0]
     }
 
     pub fn iter_verifier_choices(&self) -> impl Iterator<Item = ChosenVerifier> {
         (0..self.verifiers.len()).map(ChosenVerifier)
     }
 
+    /// Return the number of verifiers for this game.
+    /// 
+    /// # Example
+    /// ```
+    /// use turing_machine_ai::game::Game;
+    /// 
+    /// let game = Game::new_from_verifier_numbers([2, 14, 17, 21, 22].iter().copied());
+    /// assert_eq!(game.verifier_count(), 5);
+    /// ```
     #[must_use]
     pub fn verifier_count(&self) -> usize {
         self.verifiers.len()

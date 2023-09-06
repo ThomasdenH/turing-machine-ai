@@ -32,6 +32,7 @@ pub struct State<'a> {
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 struct StateScore(u16);
 
+/// This represents the current "score" associated with the game state.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 pub struct GameScore {
     pub codes_guessed: u8,
@@ -41,10 +42,13 @@ pub struct GameScore {
 impl StateScore {
     fn no_solution() -> Self {
         // A state without a solution gives the best possible score, which is
-        // the worst possible score for the answer to the verifier. This
-        // ensures that they will never pick this result. Instead they will
-        // give `StateScore::useless_verifier_check()`, which is the worst
-        // possible outcome for the player.
+        // the worst possible score for the "opponent". This
+        // ensures that they will never pick this result (provided there is a solution).
+        //
+        // Sometimes there is only a single verifier option giving a valid
+        // code, which would return [`StateScore::useless_verifier_check`].
+        // This is always the better score for the opponent, making the verifier
+        // check the worst possible action for the player.
         StateScore(0)
     }
 
@@ -73,11 +77,11 @@ impl StateScore {
         }
     }
 
-    fn min() -> Self {
+    fn min_score() -> Self {
         StateScore(u16::MAX)
     }
 
-    fn max() -> Self {
+    fn max_score() -> Self {
         StateScore(u16::MIN)
     }
 }
@@ -160,6 +164,15 @@ impl<'a> State<'a> {
     /// invalid, this function returns an error. In addition to the state
     /// itself, this function will sometimes provide additional information
     /// about the transition as the second argument of the tuple.
+    /// 
+    /// # Errors
+    /// This function returns an [`AfterMoveError`] in one of two cases:
+    /// - [`AfterMoveError::InvalidMoveError`] indicates that the provided move
+    ///     was invalid. For example, a verifier was chosen while still waiting
+    ///     on the result of another verifier.
+    /// - [`AfterMoveError::NoCodesLeft`] indicates that the game state is
+    ///     invalid. Either the provided game has no solution or one of the
+    ///     verifiers was supplied with the wrong response.
     pub fn after_move(
         mut self,
         move_to_do: Move,
@@ -273,7 +286,7 @@ impl<'a> State<'a> {
                 None,
             )
         } else if self.is_maximizing_score() {
-            let mut highest_score = StateScore::min();
+            let mut highest_score = StateScore::min_score();
             let mut best_move = None;
             for move_to_do in self.possible_moves() {
                 let next_node = self.after_move(move_to_do);
@@ -298,7 +311,7 @@ impl<'a> State<'a> {
             }
             (highest_score, best_move)
         } else {
-            let mut lowest_score = StateScore::max();
+            let mut lowest_score = StateScore::max_score();
             for move_to_do in self.possible_moves() {
                 let next_node = self.after_move(move_to_do);
                 let score = match next_node {
@@ -331,12 +344,13 @@ impl<'a> State<'a> {
     /// # Panics
     /// This function will panic if the state is currently awaiting a verifier
     /// answer or if the game has already been solved.
+    #[must_use]
     pub fn find_best_move(self) -> (GameScore, Move) {
         assert!(!self.is_awaiting_result() && !self.is_solved());
         // The optimal possible game.
-        let alpha = StateScore::min();
+        let alpha = StateScore::min_score();
         // The worst possible game.
-        let beta = StateScore::max();
+        let beta = StateScore::max_score();
         if let (score, Some(move_to_do)) = self.alphabeta(alpha, beta) {
             (score.codes_and_verifiers_checked().unwrap(), move_to_do)
         } else {

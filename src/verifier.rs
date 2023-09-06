@@ -816,12 +816,12 @@ impl Debug for Verifier {
 
 impl Verifier {
     #[must_use]
-    pub fn description(&self) -> &'static str {
+    pub const fn description(&self) -> &'static str {
         self.description
     }
 
     #[must_use]
-    pub fn number_of_options(&self) -> usize {
+    pub const fn number_of_options(&self) -> usize {
         self.options.len()
     }
 
@@ -830,7 +830,7 @@ impl Verifier {
         description: &'static str,
         options: &[VerifierOption],
     ) -> Self {
-        Verifier {
+        Self {
             description,
             options: options.iter().copied().collect(),
         }

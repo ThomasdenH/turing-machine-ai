@@ -50,6 +50,8 @@ impl Code {
     /// assert!(code::Code::from_digits(1, 2, 3).is_ok());
     /// assert_eq!(code::Code::from_digits(3, 4, 9), Err(code::Error::InvalidDigits));
     /// ```
+    // We conclude that this function cannot actually panic, but test this as
+    // well through the proptest in the `::tests` module.
     #[allow(clippy::missing_panics_doc)]
     pub fn from_digits(triangle: u8, square: u8, circle: u8) -> Result<Self, Error> {
         if !(1..=5).contains(&triangle) || !(1..=5).contains(&square) || !(1..=5).contains(&circle)
@@ -59,6 +61,8 @@ impl Code {
             Ok(Code {
                 bits: (1 << Self::digits_to_index(triangle, square, circle))
                     .try_into()
+                    // We have checked that the index is between 0-124 incl.
+                    // and so this can never fail.
                     .unwrap(),
             })
         }
@@ -77,7 +81,7 @@ impl Code {
     /// ```
     #[must_use]
     // It is not possible to make this function panic, since all digits will
-    // lie between 1-5.
+    // lie between 1-5. We test this throguh property testing.
     #[allow(clippy::missing_panics_doc)]
     pub fn digits(self) -> (u8, u8, u8) {
         let index = self.bits.trailing_zeros();
@@ -431,5 +435,30 @@ mod tests {
         let code_set = Set::from_closure(|code| code.triangle() == 1);
         assert!(code_set.contains(Code::from_digits(1, 2, 3).unwrap()));
         assert!(!code_set.contains(Code::from_digits(3, 2, 1).unwrap()));
+    }
+
+    use proptest::prelude::*;
+
+    proptest! {
+        // We unwrap because there can be no panic, but use testing for more
+        // confidence.
+        #[test]
+        fn test_no_panic_from_digits(triangle in 0..u8::MAX,
+            square in 0..u8::MAX,
+            circle in 0..u8::MAX) {
+            let _ = Code::from_digits(triangle, square, circle);
+        }
+    }
+
+    proptest! {
+        // Test that obtaining the digits can never panic, and that the result is correct.
+        #[test]
+        fn test_no_panic_digits(triangle in 1..=5u8,
+            square in 1..=5u8,
+            circle in 1..=5u8
+        ) {
+            let code = Code::from_digits(triangle, square, circle)?;
+            assert_eq!(code.digits(), (triangle, square, circle));
+        }
     }
 }
