@@ -49,7 +49,7 @@ impl Assignment {
     }
 }
 
-#[derive(Eq, PartialEq, Copy, Clone)]
+#[derive(Eq, PartialEq, Copy, Clone, Hash)]
 pub struct ChosenVerifier(usize);
 
 impl From<usize> for ChosenVerifier {
