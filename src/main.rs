@@ -14,7 +14,32 @@ fn main() {
             "There are still {} possible codes.",
             state.possible_codes().size()
         );
-        if !state.is_awaiting_result() {
+        if state.is_awaiting_result() {
+            loop {
+                println!("What does the verifier tell you? x/v");
+                let mut string = String::new();
+                stdin().read_line(&mut string).unwrap();
+                let state_result = match string.trim() {
+                    "x" | "X" => state.after_move(Move::VerifierSolution(VerifierSolution::Cross)),
+                    "v" | "V" => state.after_move(Move::VerifierSolution(VerifierSolution::Check)),
+                    other => {
+                        println!("Unknown selection: '{other}'");
+                        continue;
+                    }
+                };
+                match state_result {
+                    Err(AfterMoveError::InvalidMoveError) => panic!("Invalid move!"),
+                    Err(AfterMoveError::NoCodesLeft) => panic!("No codes left!"),
+                    Ok((new_state, None)) => {
+                        state = new_state;
+                        break;
+                    }
+                    Ok((_, Some(AfterMoveInfo::UselessVerifierCheck))) => {
+                        panic!("Useless verifier check")
+                    }
+                }
+            }
+        } else {
             let (score, move_to_do) = state.find_best_move();
             println!(
                 "You will find the solution in {} codes and {} verifier checks.",
@@ -39,31 +64,6 @@ fn main() {
                 }
                 Ok((_, Some(AfterMoveInfo::UselessVerifierCheck))) => {
                     println!("The chosen verifier does not give any new information.");
-                }
-            }
-        } else {
-            loop {
-                println!("What does the verifier tell you? x/v");
-                let mut string = String::new();
-                stdin().read_line(&mut string).unwrap();
-                let state_result = match string.trim() {
-                    "x" | "X" => state.after_move(Move::VerifierSolution(VerifierSolution::Cross)),
-                    "v" | "V" => state.after_move(Move::VerifierSolution(VerifierSolution::Check)),
-                    other => {
-                        println!("Unknown selection: '{other}'");
-                        continue;
-                    }
-                };
-                match state_result {
-                    Err(AfterMoveError::InvalidMoveError) => panic!("Invalid move!"),
-                    Err(AfterMoveError::NoCodesLeft) => panic!("No codes left!"),
-                    Ok((new_state, None)) => {
-                        state = new_state;
-                        break;
-                    }
-                    Ok((_, Some(AfterMoveInfo::UselessVerifierCheck))) => {
-                        panic!("Useless verifier check")
-                    }
                 }
             }
         }

@@ -807,7 +807,7 @@ pub struct Verifier {
 impl Debug for Verifier {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "{}", self.description)?;
-        for option in self.options.iter() {
+        for option in &self.options {
             writeln!(f, "- {}", option.description)?;
         }
         Ok(())

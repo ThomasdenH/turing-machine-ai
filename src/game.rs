@@ -80,11 +80,11 @@ impl Game {
     }
 
     /// Return the number of verifiers for this game.
-    /// 
+    ///
     /// # Example
     /// ```
     /// use turing_machine_ai::game::Game;
-    /// 
+    ///
     /// let game = Game::new_from_verifier_numbers([2, 14, 17, 21, 22].iter().copied());
     /// assert_eq!(game.verifier_count(), 5);
     /// ```

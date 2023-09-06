@@ -31,7 +31,7 @@ enum CodeVerifierChoice {
     /// A code has been selected, but no verifier yet.
     Code(Code),
     /// Both a code as well as a verifier have been selected.
-    CodeAndVerifier(Code, ChosenVerifier)
+    CodeAndVerifier(Code, ChosenVerifier),
 }
 
 /// A struct representing a score associated with a game state. The score
@@ -151,6 +151,8 @@ impl<'a> State<'a> {
         }
     }
 
+    /// Get all possible codes for this game state.
+    #[must_use]
     pub fn possible_codes(self) -> Set {
         self.possible_codes
     }
@@ -173,7 +175,7 @@ impl<'a> State<'a> {
     /// invalid, this function returns an error. In addition to the state
     /// itself, this function will sometimes provide additional information
     /// about the transition as the second argument of the tuple.
-    /// 
+    ///
     /// # Errors
     /// This function returns an [`AfterMoveError`] in one of two cases:
     /// - [`AfterMoveError::InvalidMoveError`] indicates that the provided move
@@ -198,14 +200,17 @@ impl<'a> State<'a> {
             }
             Move::ChooseVerifier(chosen_verifier) => {
                 if let CodeVerifierChoice::Code(code) = self.current_selection {
-                    self.current_selection = CodeVerifierChoice::CodeAndVerifier(code, chosen_verifier);
+                    self.current_selection =
+                        CodeVerifierChoice::CodeAndVerifier(code, chosen_verifier);
                     self.verifiers_checked += 1;
                 } else {
                     return Err(AfterMoveError::InvalidMoveError);
                 }
             }
             Move::VerifierSolution(verifier_solution) => {
-                if let  CodeVerifierChoice::CodeAndVerifier(chosen_code, chosen_verifier) = self.current_selection {
+                if let CodeVerifierChoice::CodeAndVerifier(chosen_code, chosen_verifier) =
+                    self.current_selection
+                {
                     // Get all codes that correspond to a verifier option giving the provided answer.
                     let bitmask_for_solution = self
                         .game
@@ -213,8 +218,7 @@ impl<'a> State<'a> {
                         .options()
                         .map(VerifierOption::code_set)
                         .filter(|code_set| {
-                            let would_give_check =
-                                code_set.contains(chosen_code);
+                            let would_give_check = code_set.contains(chosen_code);
                             let gives_check = verifier_solution == VerifierSolution::Check;
                             would_give_check == gives_check
                         })
@@ -247,13 +251,19 @@ impl<'a> State<'a> {
     /// Returns true if the game is awaiting a verifier answer.
     #[must_use]
     pub fn is_awaiting_result(&self) -> bool {
-        matches!(self.current_selection, CodeVerifierChoice::CodeAndVerifier(_, _))
+        matches!(
+            self.current_selection,
+            CodeVerifierChoice::CodeAndVerifier(_, _)
+        )
     }
 
     /// Returns true if a code was selected.
     #[must_use]
     pub fn has_selected_code(&self) -> bool {
-        matches!(self.current_selection, CodeVerifierChoice::CodeAndVerifier(_, _) | CodeVerifierChoice::Code(_))
+        matches!(
+            self.current_selection,
+            CodeVerifierChoice::CodeAndVerifier(_, _) | CodeVerifierChoice::Code(_)
+        )
     }
 
     /// Return all possible moves. Notably these are not verified in every way:
@@ -281,8 +291,7 @@ impl<'a> State<'a> {
                 .chain(
                     // If the code was used once, or if no code was selected, choose new code
                     Set::all().into_iter().map(Move::ChooseNewCode).filter(|_| {
-                        !self.has_selected_code()
-                            || self.has_guessed_one_verifier_for_code
+                        !self.has_selected_code() || self.has_guessed_one_verifier_for_code
                     }),
                 )
                 .filter(|_| !self.is_awaiting_result()),
