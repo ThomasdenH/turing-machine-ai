@@ -1,3 +1,8 @@
+//! This module contains code related to a full game but not to game state.
+//! 
+//! In other words, deductions based on verifiers are performed here, but no
+//! logic for checking codes and verifiers.
+
 use std::{fmt::Debug, iter};
 
 use arrayvec::ArrayVec;
@@ -30,7 +35,7 @@ impl Debug for Game {
 /// A particular assignment for a game. For example, this might indicate that
 /// for the first verifier, the second option is selected, for the second
 /// verifier the third option, etc.
-#[derive(Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Clone, Debug, Eq, PartialEq, Hash, Default)]
 pub struct Assignment {
     choice: ArrayVec<u8, MAX_VERIFIERS>,
 }
@@ -49,6 +54,15 @@ impl Assignment {
     }
 }
 
+/// Represents a choice of verifier, i.e. verifier 'B'.
+/// 
+/// # Example
+/// ```
+/// use turing_machine_ai::game::ChosenVerifier;
+/// 
+/// let verifier = ChosenVerifier::from(1usize);
+/// assert_eq!(format!("{verifier:?}"), "B");
+/// ```
 #[derive(Eq, PartialEq, Copy, Clone, Hash)]
 pub struct ChosenVerifier(usize);
 

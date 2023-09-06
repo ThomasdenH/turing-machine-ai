@@ -1,8 +1,10 @@
+//! This module contains verifier specific code, including descriptions of all default verifiers.
+
 use std::fmt::Debug;
 
 use arrayvec::ArrayVec;
 
-use crate::code::{Code, Order, Set};
+use crate::code::{Code, SequenceOrder, Set};
 
 /// Get a verifier by its (one-indexed) number in the game.
 #[must_use]
@@ -301,13 +303,13 @@ pub fn get_verifier_by_number(number: usize) -> Verifier {
             "if the 3 numbers in the code are in ascending order, descending order, or no order",
             &[
                 VerifierOption::from_description_and_closure("ascending order", |code| {
-                    code.is_ascending_or_descending() == Order::Ascending
+                    code.is_ascending_or_descending() == SequenceOrder::Ascending
                 }),
                 VerifierOption::from_description_and_closure("descending order", |code| {
-                    code.is_ascending_or_descending() == Order::Descending
+                    code.is_ascending_or_descending() == SequenceOrder::Descending
                 }),
                 VerifierOption::from_description_and_closure("no order", |code| {
-                    code.is_ascending_or_descending() == Order::NoOrder
+                    code.is_ascending_or_descending() == SequenceOrder::NoOrder
                 }),
             ],
         ),

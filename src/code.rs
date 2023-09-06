@@ -24,7 +24,7 @@ pub enum Error {
 /// Returned by [`Code::is_ascending_or_descending`] to indicate whether the code
 /// has an ascending or descending sequence.
 #[derive(Clone, Copy, Eq, PartialEq, Debug, Hash)]
-pub enum Order {
+pub enum SequenceOrder {
     /// The code has an ascending sequence, i.e. `(1, 2, 3)`.
     Ascending,
     /// The code has a descending sequence, i.e. `(4, 3, 2)`.
@@ -218,21 +218,21 @@ impl Code {
     /// Provides the order of the digits as in verifier 22.
     ///
     /// ```rust
-    /// use turing_machine_ai::code::{Code, Order};
-    /// assert_eq!(Code::from_digits(1, 3, 5)?.is_ascending_or_descending(), Order::Ascending);
-    /// assert_eq!(Code::from_digits(4, 2, 1)?.is_ascending_or_descending(), Order::Descending);
-    /// assert_eq!(Code::from_digits(2, 3, 1)?.is_ascending_or_descending(), Order::NoOrder);
+    /// use turing_machine_ai::code::{Code, SequenceOrder};
+    /// assert_eq!(Code::from_digits(1, 3, 5)?.is_ascending_or_descending(), SequenceOrder::Ascending);
+    /// assert_eq!(Code::from_digits(4, 2, 1)?.is_ascending_or_descending(), SequenceOrder::Descending);
+    /// assert_eq!(Code::from_digits(2, 3, 1)?.is_ascending_or_descending(), SequenceOrder::NoOrder);
     /// # Ok::<(), turing_machine_ai::code::Error>(())
     /// ```
     #[must_use]
-    pub fn is_ascending_or_descending(self) -> Order {
+    pub fn is_ascending_or_descending(self) -> SequenceOrder {
         let (triangle, square, circle) = self.digits();
         if triangle < square && square < circle {
-            Order::Ascending
+            SequenceOrder::Ascending
         } else if triangle > square && square > circle {
-            Order::Descending
+            SequenceOrder::Descending
         } else {
-            Order::NoOrder
+            SequenceOrder::NoOrder
         }
     }
 }
@@ -384,6 +384,7 @@ impl IntoIterator for Set {
 }
 
 /// The iterator for a set.
+#[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
 pub struct SetIterator {
     set: Set,
     current: u128,

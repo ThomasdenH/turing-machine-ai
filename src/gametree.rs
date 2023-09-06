@@ -1,3 +1,8 @@
+//! Contains all stateful logic for the game.
+//! 
+//! This module contains the tools to find the best course of action for
+//! solving a particular game.
+
 use std::fmt::Debug;
 
 use thiserror::Error;
@@ -8,11 +13,13 @@ use crate::{
     verifier::VerifierOption,
 };
 
-/// A struct representing the current game state. It contains the possible
+/// A struct representing the current game state.
+/// 
+/// It contains the possible
 /// solutions for the verifier selection, the currently selected code (if any),
 /// the currently selected verifier (if any), whether a verifier was tested, as
 /// well as how many tests were performed.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
 pub struct State<'a> {
     game: &'a Game,
     /// All the codes that are still possible solutions.
@@ -97,7 +104,7 @@ impl StateScore {
 }
 
 /// Additional info that may be returned by the function `State::after_move`.
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
 pub enum AfterMoveInfo {
     /// The move checked a verifier that did not provide additional
     /// information about the game solution.
@@ -117,23 +124,38 @@ impl PartialOrd for StateScore {
 }
 
 /// A verifier answer, represented either by a cross or a check.
-#[derive(Eq, PartialEq, Clone, Copy, Debug)]
+#[derive(Eq, PartialEq, Clone, Copy, Debug, Hash)]
 pub enum VerifierSolution {
     Cross,
     Check,
 }
 
-#[derive(Eq, PartialEq, Clone, Copy, Debug)]
+/// A move to be taken for a particular game state.
+#[derive(Eq, PartialEq, Clone, Copy, Debug, Hash)]
 pub enum Move {
+    /// Choose a new code. This can not be played directly after
+    /// [`Move::ChooseVerifier`] since we expect a verifier response using the
+    /// variant [`Move::VerifierSolution`].
     ChooseNewCode(Code),
+    /// Provide a verifier response. This can only be played after
+    /// [`Move::ChooseVerifier`].
     VerifierSolution(VerifierSolution),
+    /// Choose a verifier. This cannot be played twice in a row, since we expect
+    /// a verifier answer inbetween using [`Move::VerifierSolution`].
     ChooseVerifier(ChosenVerifier),
 }
 
-#[derive(Copy, Clone, Eq, PartialEq, Error, Debug)]
+/// An error which may be returned by [`State::after_move`].
+#[derive(Copy, Clone, Eq, PartialEq, Error, Debug, Hash)]
 pub enum AfterMoveError {
+    /// This variant indicates that the move was invalid. This may occur for
+    /// example when a new code is chosen when the state was waiting for a
+    /// verifier response.
     #[error("invalid move for game state")]
     InvalidMoveError,
+    /// This variant indicates that there is no solution left for the resulting
+    /// game state. This means that a wrong verifier answer was provided or
+    /// that the game was invalid to begin with.
     #[error("there are no solutions left for this game state")]
     NoCodesLeft,
 }
