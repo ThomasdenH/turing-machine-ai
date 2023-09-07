@@ -1,5 +1,5 @@
 //! This module contains code related to a full game but not to game state.
-//! 
+//!
 //! In other words, deductions based on verifiers are performed here, but no
 //! logic for checking codes and verifiers.
 
@@ -55,11 +55,11 @@ impl Assignment {
 }
 
 /// Represents a choice of verifier, i.e. verifier 'B'.
-/// 
+///
 /// # Example
 /// ```
 /// use turing_machine_ai::game::ChosenVerifier;
-/// 
+///
 /// let verifier = ChosenVerifier::from(1usize);
 /// assert_eq!(format!("{verifier:?}"), "B");
 /// ```

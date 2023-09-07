@@ -1,5 +1,5 @@
 //! Contains all stateful logic for the game.
-//! 
+//!
 //! This module contains the tools to find the best course of action for
 //! solving a particular game.
 
@@ -14,7 +14,7 @@ use crate::{
 };
 
 /// A struct representing the current game state.
-/// 
+///
 /// It contains the possible
 /// solutions for the verifier selection, the currently selected code (if any),
 /// the currently selected verifier (if any), whether a verifier was tested, as
@@ -210,62 +210,56 @@ impl<'a> State<'a> {
         mut self,
         move_to_do: Move,
     ) -> Result<(State<'a>, Option<AfterMoveInfo>), AfterMoveError> {
-        let mut info = None;
-        match move_to_do {
-            Move::ChooseNewCode(code) => {
-                if self.is_awaiting_result() {
-                    return Err(AfterMoveError::InvalidMoveError);
-                }
-                self.current_selection = CodeVerifierChoice::Code(code);
+        use self::VerifierSolution::*;
+        use CodeVerifierChoice::*;
+        use Move::*;
+        let mut info: Option<AfterMoveInfo> = Option::None;
+        match (move_to_do, self.current_selection) {
+            // Choosing a new code can be done if not waiting for a verifier response.
+            (ChooseNewCode(code), Code(_) | None) => {
+                self.current_selection = Code(code);
                 self.codes_guessed += 1;
                 self.has_guessed_one_verifier_for_code = false;
             }
-            Move::ChooseVerifier(chosen_verifier) => {
-                if let CodeVerifierChoice::Code(code) = self.current_selection {
-                    self.current_selection =
-                        CodeVerifierChoice::CodeAndVerifier(code, chosen_verifier);
-                    self.verifiers_checked += 1;
-                } else {
-                    return Err(AfterMoveError::InvalidMoveError);
-                }
+            // Choosing a new verifier can be done if not waiting for a verifier response,
+            // given a code was chosen.
+            (ChooseVerifier(verifier), Code(code)) => {
+                self.current_selection = CodeAndVerifier(code, verifier);
+                self.verifiers_checked += 1;
             }
-            Move::VerifierSolution(verifier_solution) => {
-                if let CodeVerifierChoice::CodeAndVerifier(chosen_code, chosen_verifier) =
-                    self.current_selection
-                {
-                    // Get all codes that correspond to a verifier option giving the provided answer.
-                    let bitmask_for_solution = self
-                        .game
-                        .verfier(chosen_verifier)
-                        .options()
-                        .map(VerifierOption::code_set)
-                        .filter(|code_set| {
-                            let would_give_check = code_set.contains(chosen_code);
-                            let gives_check = verifier_solution == VerifierSolution::Check;
-                            would_give_check == gives_check
-                        })
-                        .collect::<Set>();
-                    let possible_codes = self.possible_codes;
-                    let new_possible_codes = possible_codes.intersected_with(bitmask_for_solution);
-                    if new_possible_codes == possible_codes {
-                        info = Some(AfterMoveInfo::UselessVerifierCheck);
-                    } else if new_possible_codes.size() == 0 {
-                        return Err(AfterMoveError::NoCodesLeft);
-                    } else {
-                        self.possible_codes = new_possible_codes;
-                    }
+            // A verifier solution can be provided if a code and verifier have been selected.
+            (VerifierSolution(solution), CodeAndVerifier(code, verifier)) => {
+                // Get all codes that correspond to a verifier option giving the provided answer.
+                let bitmask_for_solution = self
+                    .game
+                    .verfier(verifier)
+                    .options()
+                    .map(VerifierOption::code_set)
+                    .filter(|code_set| {
+                        let would_give_check = code_set.contains(code);
+                        let gives_check = solution == Check;
+                        would_give_check == gives_check
+                    })
+                    .collect::<Set>();
+                let possible_codes = self.possible_codes;
+                let new_possible_codes = possible_codes.intersected_with(bitmask_for_solution);
+                if new_possible_codes == possible_codes {
+                    info = Some(AfterMoveInfo::UselessVerifierCheck);
+                } else if new_possible_codes.is_empty() {
+                    return Err(AfterMoveError::NoCodesLeft);
+                } else {
+                    self.possible_codes = new_possible_codes;
+                }
 
-                    // If three verifiers were checked, we must select a new
-                    // code. Otherwise, reset just the verifier selection.
-                    if self.verifiers_checked == 3 {
-                        self.current_selection = CodeVerifierChoice::None;
-                    } else {
-                        self.current_selection = CodeVerifierChoice::Code(chosen_code);
-                    }
+                // If three verifiers were checked, we must select a new
+                // code. Otherwise, reset just the verifier selection.
+                if self.verifiers_checked == 3 {
+                    self.current_selection = None;
                 } else {
-                    return Err(AfterMoveError::InvalidMoveError);
+                    self.current_selection = Code(code);
                 }
             }
+            _ => return Err(AfterMoveError::InvalidMoveError),
         }
         Ok((self, info))
     }

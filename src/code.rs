@@ -347,6 +347,19 @@ impl Set {
         self.code_bitmap.count_ones()
     }
 
+    /// Returns true if and only if the set is empty.
+    ///
+    /// # Example
+    /// ```
+    /// use turing_machine_ai::code::Set;
+    ///
+    /// let codes_matching_criteria = Set::from_closure(|code| code.square() > 5);
+    /// assert!(codes_matching_criteria.is_empty());
+    /// ```
+    pub fn is_empty(self) -> bool {
+        self.code_bitmap == 0
+    }
+
     /// Construct a new code set based on a closure that returns `true` for any
     /// code that must be in the set.
     pub fn from_closure(checker: fn(Code) -> bool) -> Self {
