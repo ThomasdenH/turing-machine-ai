@@ -10,7 +10,8 @@ use turing_machine_ai::{
 #[test]
 fn test_01() -> Result<(), Box<dyn Error>> {
     let game = Game::new_from_verifier_numbers([4, 9, 11, 14].iter().copied());
-    let state = State::new(&game);
+    let possible_solutions = game.possible_solutions();
+    let state = State::new(&game, (&possible_solutions).into());
     let (game_score, next_move) = state.find_best_move();
     assert_eq!(game_score.codes_guessed, 1);
     assert_eq!(game_score.verifiers_checked, 1);
@@ -28,7 +29,7 @@ fn test_01() -> Result<(), Box<dyn Error>> {
     let (state, _) = state.after_move(Move::VerifierSolution(Cross))?;
     assert!(state.is_solved());
     assert_eq!(
-        state.possible_codes().into_iter().next(),
+        state.solution(),
         Some(Code::from_digits(2, 4, 1)?)
     );
 
@@ -38,29 +39,29 @@ fn test_01() -> Result<(), Box<dyn Error>> {
 #[test]
 fn test_02() -> Result<(), Box<dyn Error>> {
     let game = Game::new_from_verifier_numbers([3, 7, 10, 14].iter().copied());
-    let state = State::new(&game);
-    let (_, next_move) = state.find_best_move();
-    assert_eq!(next_move, Move::ChooseNewCode(Code::from_digits(2, 2, 1)?));
+    let possible_solutions = game.possible_solutions();
+    let state = State::new(&game, (&possible_solutions).into());
+    dbg!(state.possible_solutions());
 
-    let (state, _) = state.after_move(next_move)?;
     let (_, next_move) = state.find_best_move();
-    assert_eq!(next_move, Move::ChooseVerifier(0.into()));
-
+    assert_eq!(next_move, Move::ChooseNewCode(Code::from_digits(2, 3, 1)?));
     let (state, _) = state.after_move(next_move)?;
-    let (state, _) = state.after_move(Move::VerifierSolution(Cross))?;
+
     let (_, next_move) = state.find_best_move();
     assert_eq!(next_move, Move::ChooseVerifier(1.into()));
-
     let (state, _) = state.after_move(next_move)?;
     let (state, _) = state.after_move(Move::VerifierSolution(Check))?;
+    dbg!(state.possible_solutions());
+
     let (_, next_move) = state.find_best_move();
     assert_eq!(next_move, Move::ChooseVerifier(3.into()));
-
     let (state, _) = state.after_move(next_move)?;
     let (state, _) = state.after_move(Move::VerifierSolution(Cross))?;
+    dbg!(state.possible_solutions());
+
     assert!(state.is_solved());
     assert_eq!(
-        state.possible_codes().into_iter().next(),
+        state.solution(),
         Some(Code::from_digits(4, 3, 5)?)
     );
 

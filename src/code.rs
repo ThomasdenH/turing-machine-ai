@@ -239,7 +239,7 @@ impl Code {
 
 impl Debug for Code {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let (triangle, circle, square) = self.digits();
+        let (triangle, square, circle) = self.digits();
         write!(f, "△: {triangle}, □: {square}, ○: {circle}")
     }
 }
@@ -442,6 +442,8 @@ impl FromIterator<Set> for Set {
 
 #[cfg(test)]
 mod tests {
+    use std::error::Error;
+
     use super::{Code, Set};
 
     #[test]
@@ -474,5 +476,11 @@ mod tests {
             let code = Code::from_digits(triangle, square, circle)?;
             assert_eq!(code.digits(), (triangle, square, circle));
         }
+    }
+
+    #[test]
+    fn test_debug() -> Result<(), Box<dyn Error>> {
+        assert_eq!(format!("{:?}", Code::from_digits(2, 1, 3)?), "△: 2, □: 1, ○: 3");
+        Ok(())
     }
 }

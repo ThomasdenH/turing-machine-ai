@@ -7,12 +7,13 @@ use turing_machine_ai::gametree::{
 
 fn main() {
     let game = Game::new_from_verifier_numbers([3, 7, 10, 14].iter().copied());
+    let possible_solutions = game.possible_solutions();
 
-    let mut state = State::new(&game);
+    let mut state = State::new(&game, (&possible_solutions).into());
     while !state.is_solved() {
         println!(
             "There are still {} possible codes.",
-            state.possible_codes().size()
+            state.possible_solutions().size()
         );
         if state.is_awaiting_result() {
             loop {
@@ -71,6 +72,6 @@ fn main() {
 
     println!(
         "Solved! Solution: {:?}",
-        state.possible_codes().into_iter().next().unwrap()
+        state.possible_solutions().possible_codes().next().unwrap()
     );
 }

@@ -3,14 +3,34 @@
 //! This module contains the tools to find the best course of action for
 //! solving a particular game.
 
+// TODO: There is a subltle bug in this code. Even if a verifier check doesn't
+// eliminate codes immediately, it may still be usefull because the elimination of verifier
+// options itself may be useful. This means that we prune out these branches too
+// quickly. Furthermore, we probably have to store possible verifier options 
+// instead of/in addition to possible codes.
+//
+// Example: Suppose we know it's two possible codes:
+// △ □ ○
+// 3 5 1
+// 1 5 3
+//
+// and we need information from one verfier: verifier 48.
+//  △ < □   △ < ○   □ < ○
+//  △ = □   △ = ○   □ = ○
+//  △ > □   △ > ○   □ > ○
+//
+// Suppose we test 4 5 5, which gives a Check. Then no code can be eliminated on
+// the face of it, since the criterion may be △ < □, which is true in both
+// cases. However, we know that the four verifiers are sufficient and so that
+// the criterion must have been △ < ○, eliminating code 3 5 1.
+
 use std::fmt::Debug;
 
 use thiserror::Error;
 
 use crate::{
     code::{Code, Set},
-    game::{ChosenVerifier, Game},
-    verifier::VerifierOption,
+    game::{ChosenVerifier, Game, PossibleSolutionFilter},
 };
 
 /// A struct representing the current game state.
@@ -23,7 +43,7 @@ use crate::{
 pub struct State<'a> {
     game: &'a Game,
     /// All the codes that are still possible solutions.
-    possible_codes: Set,
+    possible_codes: PossibleSolutionFilter<'a>,
     current_selection: CodeVerifierChoice,
     has_guessed_one_verifier_for_code: bool,
     codes_guessed: u8,
@@ -46,8 +66,18 @@ enum CodeVerifierChoice {
 /// the highest whereas a game without a solution is the lowest possible score.
 ///
 /// Internally, the score is inverted so that a perfect game is represented by a 0.
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq)]
 struct StateScore(u16);
+
+impl Debug for StateScore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        if let Some(game_score) = self.codes_and_verifiers_checked() {
+            write!(f, "{game_score:?}")
+        } else {
+            write!(f, "useless verifier check")
+        }
+    }
+}
 
 /// This represents the current "score" associated with the game state.
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -73,7 +103,7 @@ impl StateScore {
         StateScore(u16::from(codes_guessed) << 8 | u16::from(verifier_checks))
     }
 
-    /// This is represented by the worst possible outcome for the verifier.
+    /// This is represented by the worst possible outcome for the player.
     /// This is actually a heuristic---because it is never a good idea to guess
     /// without gaining information, these branches do not have to be explored.
     fn useless_verifier_check() -> Self {
@@ -130,6 +160,7 @@ pub enum VerifierSolution {
     Check,
 }
 
+
 /// A move to be taken for a particular game state.
 #[derive(Eq, PartialEq, Clone, Copy, Debug, Hash)]
 pub enum Move {
@@ -162,10 +193,10 @@ pub enum AfterMoveError {
 
 impl<'a> State<'a> {
     #[must_use]
-    pub fn new(game: &'a Game) -> Self {
+    pub fn new(game: &'a Game, possible_codes: PossibleSolutionFilter<'a>) -> Self {
         State {
             game,
-            possible_codes: game.possible_solutions(),
+            possible_codes,
             current_selection: CodeVerifierChoice::None,
             has_guessed_one_verifier_for_code: false,
             codes_guessed: 0,
@@ -175,7 +206,7 @@ impl<'a> State<'a> {
 
     /// Get all possible codes for this game state.
     #[must_use]
-    pub fn possible_codes(self) -> Set {
+    pub fn possible_solutions(self) -> PossibleSolutionFilter<'a> {
         self.possible_codes
     }
 
@@ -187,10 +218,7 @@ impl<'a> State<'a> {
     /// If solved, returns the solution. Otherwise, it returns `None`.
     #[must_use]
     pub fn solution(self) -> Option<Code> {
-        self.possible_codes
-            .into_iter()
-            .next()
-            .filter(|_| self.is_solved())
+        self.possible_codes.solution()
     }
 
     /// Return the state after performing the given move. If the given move is
@@ -210,7 +238,6 @@ impl<'a> State<'a> {
         mut self,
         move_to_do: Move,
     ) -> Result<(State<'a>, Option<AfterMoveInfo>), AfterMoveError> {
-        use self::VerifierSolution::*;
         use CodeVerifierChoice::*;
         use Move::*;
         let mut info: Option<AfterMoveInfo> = Option::None;
@@ -230,26 +257,16 @@ impl<'a> State<'a> {
             // A verifier solution can be provided if a code and verifier have been selected.
             (VerifierSolution(solution), CodeAndVerifier(code, verifier)) => {
                 // Get all codes that correspond to a verifier option giving the provided answer.
-                let bitmask_for_solution = self
-                    .game
-                    .verfier(verifier)
-                    .options()
-                    .map(VerifierOption::code_set)
-                    .filter(|code_set| {
-                        let would_give_check = code_set.contains(code);
-                        let gives_check = solution == Check;
-                        would_give_check == gives_check
-                    })
-                    .collect::<Set>();
-                let possible_codes = self.possible_codes;
-                let new_possible_codes = possible_codes.intersected_with(bitmask_for_solution);
-                if new_possible_codes == possible_codes {
+                let new_possible_solutions = self.possible_codes.filter_through_verifier_check(self.game, verifier, code, solution);
+                if new_possible_solutions.size() == self.possible_codes.size() {
                     info = Some(AfterMoveInfo::UselessVerifierCheck);
-                } else if new_possible_codes.is_empty() {
+                } else if new_possible_solutions.is_empty() {
                     return Err(AfterMoveError::NoCodesLeft);
                 } else {
-                    self.possible_codes = new_possible_codes;
+                    self.possible_codes = new_possible_solutions;
                 }
+
+                self.has_guessed_one_verifier_for_code = true;
 
                 // If three verifiers were checked, we must select a new
                 // code. Otherwise, reset just the verifier selection.
@@ -322,7 +339,7 @@ impl<'a> State<'a> {
     }
 
     /// Perform minmax with alpha-beta pruning.
-    fn alphabeta(self, mut alpha: StateScore, mut beta: StateScore) -> (StateScore, Option<Move>) {
+    fn alphabeta(self, mut alpha: StateScore, mut beta: StateScore, depth: u32) -> (StateScore, Option<Move>) {
         // If the game is solved, return the result.
         if self.is_solved() {
             (
@@ -340,7 +357,7 @@ impl<'a> State<'a> {
                     Ok((_, Some(AfterMoveInfo::UselessVerifierCheck))) => {
                         StateScore::useless_verifier_check()
                     }
-                    Ok((state, None)) => state.alphabeta(alpha, beta).0,
+                    Ok((state, None)) => state.alphabeta(alpha, beta, depth + 1).0,
                 };
                 if score > highest_score {
                     highest_score = score;
@@ -364,7 +381,7 @@ impl<'a> State<'a> {
                     Ok((_, Some(AfterMoveInfo::UselessVerifierCheck))) => {
                         StateScore::useless_verifier_check()
                     }
-                    Ok((state, None)) => state.alphabeta(alpha, beta).0,
+                    Ok((state, None)) => state.alphabeta(alpha, beta, depth + 1).0,
                 };
                 if score < lowest_score {
                     lowest_score = score;
@@ -395,7 +412,7 @@ impl<'a> State<'a> {
         let alpha = StateScore::min_score();
         // The worst possible game.
         let beta = StateScore::max_score();
-        if let (score, Some(move_to_do)) = self.alphabeta(alpha, beta) {
+        if let (score, Some(move_to_do)) = self.alphabeta(alpha, beta, 0) {
             (score.codes_and_verifiers_checked().unwrap(), move_to_do)
         } else {
             panic!("No move possible");
@@ -406,7 +423,6 @@ impl<'a> State<'a> {
 #[cfg(test)]
 mod tests {
     use crate::gametree::GameScore;
-
     use super::StateScore;
 
     #[test]
