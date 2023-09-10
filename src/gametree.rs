@@ -249,11 +249,15 @@ impl<'a> State<'a> {
             // Choosing a new verifier can be done if not waiting for a verifier response,
             // given a code was chosen.
             (ChooseVerifier(verifier), Code(code, verifiers_checked_for_this_code)) => {
-                self.current_selection = CodeAndVerifier(code, verifiers_checked_for_this_code + 1, verifier);
+                self.current_selection =
+                    CodeAndVerifier(code, verifiers_checked_for_this_code + 1, verifier);
                 self.verifiers_checked += 1;
             }
             // A verifier solution can be provided if a code and verifier have been selected.
-            (VerifierSolution(solution), CodeAndVerifier(code, verifiers_checked_for_this_code, verifier)) => {
+            (
+                VerifierSolution(solution),
+                CodeAndVerifier(code, verifiers_checked_for_this_code, verifier),
+            ) => {
                 // Get all codes that correspond to a verifier option giving the provided answer.
                 let new_possible_solutions = self
                     .possible_codes
@@ -300,9 +304,17 @@ impl<'a> State<'a> {
     fn may_choose_new_code(&self) -> bool {
         match self.current_selection {
             CodeVerifierChoice::None => true,
-            CodeVerifierChoice::Code(_, verifiers_checked_for_code) if verifiers_checked_for_code != 0 => true,
-            CodeVerifierChoice::CodeAndVerifier(_, verifiers_checked_for_code, _) if verifiers_checked_for_code != 0 => true,
-            _ => false
+            CodeVerifierChoice::Code(_, verifiers_checked_for_code)
+                if verifiers_checked_for_code != 0 =>
+            {
+                true
+            }
+            CodeVerifierChoice::CodeAndVerifier(_, verifiers_checked_for_code, _)
+                if verifiers_checked_for_code != 0 =>
+            {
+                true
+            }
+            _ => false,
         }
     }
 
@@ -323,20 +335,24 @@ impl<'a> State<'a> {
         .filter(|_| self.is_awaiting_result())
         // Otherwise,
         .chain(
-            // Otherwise, if a code is chosen, choose a verifier
-            self.game
-                .iter_verifier_choices()
-                .map(Move::ChooseVerifier)
-                .filter(|_| self.has_selected_code())
-                .chain(
-                    // All codes
-                    self.choose_new_code_moves_if_possible()
-                )
-                .filter(|_| !self.is_awaiting_result()),
+            Some(
+                // Otherwise, if a code is chosen, choose a verifier
+                self.game
+                    .iter_verifier_choices()
+                    .map(Move::ChooseVerifier)
+                    .filter(|_| self.has_selected_code())
+                    .chain(
+                        // All codes
+                        self.choose_new_code_moves_if_possible(),
+                    ),
+            )
+            .filter(|_| !self.is_awaiting_result())
+            .into_iter()
+            .flatten(),
         )
     }
 
-    fn choose_new_code_moves_if_possible(&self) -> impl Iterator<Item = Move> + '_  {
+    fn choose_new_code_moves_if_possible(&self) -> impl Iterator<Item = Move> + '_ {
         Some(Set::all().into_iter().map(Move::ChooseNewCode))
             // If the code was used once, or if no code was selected, choose new code
             .filter(|_| self.may_choose_new_code())
@@ -352,11 +368,7 @@ impl<'a> State<'a> {
     }
 
     /// Perform minmax with alpha-beta pruning.
-    fn alphabeta(
-        self,
-        mut alpha: StateScore,
-        mut beta: StateScore
-    ) -> (StateScore, Option<Move>) {
+    fn alphabeta(self, mut alpha: StateScore, mut beta: StateScore) -> (StateScore, Option<Move>) {
         // If the game is solved, return the result.
         if self.is_solved() {
             (
