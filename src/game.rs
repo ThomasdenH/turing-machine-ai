@@ -348,16 +348,11 @@ impl<'a> PossibleSolutionFilter<'a> {
 
         let assignments_and_codes = &self.possible_solutions.assignments_and_codes;
         // Now remove all options that are no longer possible.
-        for (bit, (assignment, _code)) in std::iter::successors(Some(1u128), |prev| Some(prev << 1))
-            .zip(assignments_and_codes.iter())
-        {
-            // Check if it is in!
-            if self.containing & bit != 0 {
-                // Does not match the new info
-                if assignment.bitmap & matching_options == 0 {
-                    // Remove
-                    self.containing &= !bit;
-                }
+
+        for (index, (assignment, _code)) in assignments_and_codes.iter().enumerate() {
+            if assignment.bitmap & matching_options == 0 {
+                // Remove (even if it is not in)
+                self.containing &= !(1 << index);
             }
         }
         self
