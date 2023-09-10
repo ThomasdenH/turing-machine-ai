@@ -45,7 +45,6 @@ pub struct State<'a> {
     /// All the codes that are still possible solutions.
     possible_codes: PossibleSolutionFilter<'a>,
     current_selection: CodeVerifierChoice,
-    has_guessed_one_verifier_for_code: bool,
     codes_guessed: u8,
     verifiers_checked: u8,
 }
@@ -56,9 +55,11 @@ enum CodeVerifierChoice {
     /// Neither a code, nor a verifier has been selected.
     None,
     /// A code has been selected, but no verifier yet.
-    Code(Code),
+    /// The second argument indicates how many verifiers have been checked for this code.
+    Code(Code, u8),
     /// Both a code as well as a verifier have been selected.
-    CodeAndVerifier(Code, ChosenVerifier),
+    /// The second argument indicates how many verifiers have been checked for this code.
+    CodeAndVerifier(Code, u8, ChosenVerifier),
 }
 
 /// A struct representing a score associated with a game state. The score
@@ -197,7 +198,6 @@ impl<'a> State<'a> {
             game,
             possible_codes,
             current_selection: CodeVerifierChoice::None,
-            has_guessed_one_verifier_for_code: false,
             codes_guessed: 0,
             verifiers_checked: 0,
         }
@@ -242,19 +242,18 @@ impl<'a> State<'a> {
         let mut info: Option<AfterMoveInfo> = Option::None;
         match (move_to_do, self.current_selection) {
             // Choosing a new code can be done if not waiting for a verifier response.
-            (ChooseNewCode(code), Code(_) | None) => {
-                self.current_selection = Code(code);
+            (ChooseNewCode(code), Code(_, _) | None) => {
+                self.current_selection = Code(code, 0);
                 self.codes_guessed += 1;
-                self.has_guessed_one_verifier_for_code = false;
             }
             // Choosing a new verifier can be done if not waiting for a verifier response,
             // given a code was chosen.
-            (ChooseVerifier(verifier), Code(code)) => {
-                self.current_selection = CodeAndVerifier(code, verifier);
+            (ChooseVerifier(verifier), Code(code, verifiers_checked_for_this_code)) => {
+                self.current_selection = CodeAndVerifier(code, verifiers_checked_for_this_code + 1, verifier);
                 self.verifiers_checked += 1;
             }
             // A verifier solution can be provided if a code and verifier have been selected.
-            (VerifierSolution(solution), CodeAndVerifier(code, verifier)) => {
+            (VerifierSolution(solution), CodeAndVerifier(code, verifiers_checked_for_this_code, verifier)) => {
                 // Get all codes that correspond to a verifier option giving the provided answer.
                 let new_possible_solutions = self
                     .possible_codes
@@ -267,14 +266,12 @@ impl<'a> State<'a> {
                     self.possible_codes = new_possible_solutions;
                 }
 
-                self.has_guessed_one_verifier_for_code = true;
-
                 // If three verifiers were checked, we must select a new
                 // code. Otherwise, reset just the verifier selection.
-                if self.verifiers_checked == 3 {
+                if verifiers_checked_for_this_code == 3 {
                     self.current_selection = None;
                 } else {
-                    self.current_selection = Code(code);
+                    self.current_selection = Code(code, verifiers_checked_for_this_code);
                 }
             }
             _ => return Err(AfterMoveError::InvalidMoveError),
@@ -287,7 +284,7 @@ impl<'a> State<'a> {
     pub fn is_awaiting_result(&self) -> bool {
         matches!(
             self.current_selection,
-            CodeVerifierChoice::CodeAndVerifier(_, _)
+            CodeVerifierChoice::CodeAndVerifier(_, _, _)
         )
     }
 
@@ -296,8 +293,17 @@ impl<'a> State<'a> {
     pub fn has_selected_code(&self) -> bool {
         matches!(
             self.current_selection,
-            CodeVerifierChoice::CodeAndVerifier(_, _) | CodeVerifierChoice::Code(_)
+            CodeVerifierChoice::CodeAndVerifier(_, _, _) | CodeVerifierChoice::Code(_, _)
         )
+    }
+
+    fn may_choose_new_code(&self) -> bool {
+        match self.current_selection {
+            CodeVerifierChoice::None => true,
+            CodeVerifierChoice::Code(_, verifiers_checked_for_code) if verifiers_checked_for_code != 0 => true,
+            CodeVerifierChoice::CodeAndVerifier(_, verifiers_checked_for_code, _) if verifiers_checked_for_code != 0 => true,
+            _ => false
+        }
     }
 
     /// Return all possible moves. Notably these are not verified in every way:
@@ -323,13 +329,19 @@ impl<'a> State<'a> {
                 .map(Move::ChooseVerifier)
                 .filter(|_| self.has_selected_code())
                 .chain(
-                    // If the code was used once, or if no code was selected, choose new code
-                    Set::all().into_iter().map(Move::ChooseNewCode).filter(|_| {
-                        !self.has_selected_code() || self.has_guessed_one_verifier_for_code
-                    }),
+                    // All codes
+                    self.choose_new_code_moves_if_possible()
                 )
                 .filter(|_| !self.is_awaiting_result()),
         )
+    }
+
+    fn choose_new_code_moves_if_possible(&self) -> impl Iterator<Item = Move> + '_  {
+        Some(Set::all().into_iter().map(Move::ChooseNewCode))
+            // If the code was used once, or if no code was selected, choose new code
+            .filter(|_| self.may_choose_new_code())
+            .into_iter()
+            .flatten()
     }
 
     /// Returns whether the state demands maximizing the score. This
