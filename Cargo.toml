@@ -12,6 +12,7 @@ description = "Tools and an AI for the Turing Machine board game"
 [dependencies]
 arrayvec = "0.7"
 thiserror = "1.0"
+auto_enums = "0.8.2"
 
 [dev-dependencies]
 proptest = "1.0.0"

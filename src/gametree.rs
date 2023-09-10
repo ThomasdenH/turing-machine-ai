@@ -26,6 +26,7 @@
 
 use std::fmt::Debug;
 
+use auto_enums::auto_enum;
 use thiserror::Error;
 
 use crate::{
@@ -301,63 +302,34 @@ impl<'a> State<'a> {
         )
     }
 
-    fn may_choose_new_code(&self) -> bool {
-        match self.current_selection {
-            CodeVerifierChoice::None => true,
-            CodeVerifierChoice::Code(_, verifiers_checked_for_code)
-                if verifiers_checked_for_code != 0 =>
-            {
-                true
-            }
-            CodeVerifierChoice::CodeAndVerifier(_, verifiers_checked_for_code, _)
-                if verifiers_checked_for_code != 0 =>
-            {
-                true
-            }
-            _ => false,
-        }
-    }
-
     /// Return all possible moves. Notably these are not verified in every way:
     /// - Verifiers may return impossible results, leading to no solution.
     /// - Codes or verifiers may be chosen that do not provide information to
     ///   the player.
-    pub fn possible_moves(&self) -> impl Iterator<Item = Move> + '_ {
-        // This function looks messy to avoid allocating a Vec with moves.
-
-        // If awaiting result, return both results
-        [
-            Move::VerifierSolution(VerifierSolution::Check),
-            Move::VerifierSolution(VerifierSolution::Cross),
-        ]
-        .iter()
-        .copied()
-        .filter(|_| self.is_awaiting_result())
-        // Otherwise,
-        .chain(
-            Some(
-                // Otherwise, if a code is chosen, choose a verifier
+    #[auto_enum(Iterator)]
+    pub fn possible_moves(&self) -> impl Iterator<Item = Move> {
+        match self.current_selection {
+            CodeVerifierChoice::CodeAndVerifier(_, _, _) => {
+                [
+                    Move::VerifierSolution(VerifierSolution::Check),
+                    Move::VerifierSolution(VerifierSolution::Cross),
+                ]
+                .iter()
+                .copied()
+            },
+            CodeVerifierChoice::None => Set::all().into_iter().map(Move::ChooseNewCode),
+            CodeVerifierChoice::Code(_, verifiers_used_for_codes) if verifiers_used_for_codes != 0 => {
                 self.game
                     .iter_verifier_choices()
                     .map(Move::ChooseVerifier)
-                    .filter(|_| self.has_selected_code())
-                    .chain(
-                        // All codes
-                        self.choose_new_code_moves_if_possible(),
-                    ),
-            )
-            .filter(|_| !self.is_awaiting_result())
-            .into_iter()
-            .flatten(),
-        )
-    }
-
-    fn choose_new_code_moves_if_possible(&self) -> impl Iterator<Item = Move> + '_ {
-        Some(Set::all().into_iter().map(Move::ChooseNewCode))
-            // If the code was used once, or if no code was selected, choose new code
-            .filter(|_| self.may_choose_new_code())
-            .into_iter()
-            .flatten()
+                    .chain(Set::all().into_iter().map(Move::ChooseNewCode))
+            },
+            CodeVerifierChoice::Code(_, _) => {
+                self.game
+                    .iter_verifier_choices()
+                    .map(Move::ChooseVerifier)
+            }
+        }
     }
 
     /// Returns whether the state demands maximizing the score. This
