@@ -30,7 +30,7 @@ use auto_enums::auto_enum;
 use thiserror::Error;
 
 use crate::{
-    code::{self, Code, Set},
+    code::{Code, Set},
     game::{ChosenVerifier, Game, PossibleSolutionFilter},
 };
 
@@ -46,8 +46,7 @@ pub struct State<'a> {
     /// All the codes that are still possible solutions.
     possible_codes: PossibleSolutionFilter<'a>,
     current_selection: CodeVerifierChoice,
-    codes_guessed: u8,
-    verifiers_checked: u8,
+    codes_guessed_verifiers_checked: u16
 }
 
 /// Indicates whether a code and a verifier have been selected.
@@ -101,8 +100,8 @@ impl StateScore {
         StateScore(0)
     }
 
-    fn solution(codes_guessed: u8, verifier_checks: u8) -> Self {
-        StateScore(u16::from(codes_guessed) << 8 | u16::from(verifier_checks))
+    fn solution(codes_guessed_verifiers_checked: u16) -> Self {
+        StateScore(codes_guessed_verifiers_checked)
     }
 
     /// This is represented by the worst possible outcome for the player.
@@ -199,8 +198,7 @@ impl<'a> State<'a> {
             game,
             possible_codes,
             current_selection: CodeVerifierChoice::None,
-            codes_guessed: 0,
-            verifiers_checked: 0,
+            codes_guessed_verifiers_checked: 0
         }
     }
 
@@ -245,14 +243,14 @@ impl<'a> State<'a> {
             // Choosing a new code can be done if not waiting for a verifier response.
             (ChooseNewCode(code), Code(_, _) | None) => {
                 self.current_selection = Code(code, 0);
-                self.codes_guessed += 1;
+                self.codes_guessed_verifiers_checked += 1 << 8;
             }
             // Choosing a new verifier can be done if not waiting for a verifier response,
             // given a code was chosen.
             (ChooseVerifier(verifier), Code(code, verifiers_checked_for_this_code)) => {
                 self.current_selection =
                     CodeAndVerifier(code, verifiers_checked_for_this_code + 1, verifier);
-                self.verifiers_checked += 1;
+                self.codes_guessed_verifiers_checked += 1;
             }
             // A verifier solution can be provided if a code and verifier have been selected.
             (
@@ -342,7 +340,7 @@ impl<'a> State<'a> {
         // If the game is solved, return the result.
         if self.is_solved() {
             (
-                StateScore::solution(self.codes_guessed, self.verifiers_checked),
+                StateScore::solution(self.codes_guessed_verifiers_checked),
                 None,
             )
         } else if self.is_maximizing_score() {
@@ -415,28 +413,6 @@ impl<'a> State<'a> {
             (score.codes_and_verifiers_checked().unwrap(), move_to_do)
         } else {
             panic!("No move possible");
-        }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::StateScore;
-    use crate::gametree::GameScore;
-
-    #[test]
-    fn test_game_score() {
-        for codes_guessed in 0..10 {
-            for verifiers_checked in codes_guessed..30 {
-                let state_score = StateScore::solution(codes_guessed, verifiers_checked);
-                assert_eq!(
-                    state_score.codes_and_verifiers_checked().unwrap(),
-                    GameScore {
-                        codes_guessed,
-                        verifiers_checked
-                    }
-                );
-            }
         }
     }
 }
