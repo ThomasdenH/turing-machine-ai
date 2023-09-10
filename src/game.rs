@@ -385,12 +385,10 @@ impl<'a> PossibleSolutionFilter<'a> {
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
 pub struct PossibleAssignments {
-    bitmap: u128
+    bitmap: u128,
 }
 
-impl PossibleAssignments {
-
-}
+impl PossibleAssignments {}
 
 #[cfg(test)]
 mod tests {
@@ -398,7 +396,8 @@ mod tests {
 
     use crate::{
         code::{Code, Set},
-        game::ChosenVerifier, gametree::VerifierSolution,
+        game::ChosenVerifier,
+        gametree::VerifierSolution,
     };
 
     use super::{Game, PossibleSolutionFilter};
@@ -449,10 +448,15 @@ mod tests {
         let verifier = ChosenVerifier(3);
         let code = Code::from_digits(1, 2, 3)?;
         let solution = VerifierSolution::Check;
-        println!("{:0128b}", possible_solutions_filter.mask_for_verifier_check(&game, verifier, code, solution));
-        for assignment in possible_solutions_filter.possible_codes_with_index().map(|(_, assignment, _)| assignment) {
+        println!(
+            "{:0128b}",
+            possible_solutions_filter.mask_for_verifier_check(&game, verifier, code, solution)
+        );
+        for assignment in possible_solutions_filter
+            .possible_codes_with_index()
+            .map(|(_, assignment, _)| assignment)
+        {
             println!("{:0128b}", assignment.bitmap);
-
         }
 
         let possible_solutions_filter = possible_solutions_filter.filter_through_verifier_check(
@@ -462,10 +466,15 @@ mod tests {
             VerifierSolution::Check,
         );
 
-        println!("{:0128b}", possible_solutions_filter.mask_for_verifier_check(&game, verifier, code, solution));
-        for assignment in possible_solutions_filter.possible_codes_with_index().map(|(_, assignment, _)| assignment) {
+        println!(
+            "{:0128b}",
+            possible_solutions_filter.mask_for_verifier_check(&game, verifier, code, solution)
+        );
+        for assignment in possible_solutions_filter
+            .possible_codes_with_index()
+            .map(|(_, assignment, _)| assignment)
+        {
             println!("{:0128b}", assignment.bitmap);
-
         }
 
         assert_eq!(

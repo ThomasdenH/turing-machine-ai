@@ -28,10 +28,7 @@ fn test_01() -> Result<(), Box<dyn Error>> {
 
     let (state, _) = state.after_move(Move::VerifierSolution(Cross))?;
     assert!(state.is_solved());
-    assert_eq!(
-        state.solution(),
-        Some(Code::from_digits(2, 4, 1)?)
-    );
+    assert_eq!(state.solution(), Some(Code::from_digits(2, 4, 1)?));
 
     Ok(())
 }
@@ -60,10 +57,7 @@ fn test_02() -> Result<(), Box<dyn Error>> {
     dbg!(state.possible_solutions());
 
     assert!(state.is_solved());
-    assert_eq!(
-        state.solution(),
-        Some(Code::from_digits(4, 3, 5)?)
-    );
+    assert_eq!(state.solution(), Some(Code::from_digits(4, 3, 5)?));
 
     Ok(())
 }

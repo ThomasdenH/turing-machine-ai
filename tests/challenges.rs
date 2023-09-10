@@ -3,7 +3,7 @@ use std::error::Error;
 use turing_machine_ai::{
     code::Code,
     game::Game,
-    gametree::{Move, VerifierSolution::*, State},
+    gametree::{Move, State, VerifierSolution::*},
 };
 
 #[test]
@@ -43,7 +43,7 @@ fn challenge_c4d_ck4() -> Result<(), Box<dyn Error>> {
     assert_eq!(move_to_do, Move::ChooseVerifier(3.into()));
     let (state, _) = state.after_move(move_to_do)?;
     let (state, _) = state.after_move(Move::VerifierSolution(Cross))?;
-    
+
     let (_, move_to_do) = state.find_best_move();
     assert_eq!(move_to_do, Move::ChooseNewCode(Code::from_digits(2, 3, 1)?));
     let (state, _) = state.after_move(move_to_do)?;

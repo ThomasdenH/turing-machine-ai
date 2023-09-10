@@ -6,7 +6,7 @@
 // TODO: There is a subltle bug in this code. Even if a verifier check doesn't
 // eliminate codes immediately, it may still be usefull because the elimination of verifier
 // options itself may be useful. This means that we prune out these branches too
-// quickly. Furthermore, we probably have to store possible verifier options 
+// quickly. Furthermore, we probably have to store possible verifier options
 // instead of/in addition to possible codes.
 //
 // Example: Suppose we know it's two possible codes:
@@ -160,7 +160,6 @@ pub enum VerifierSolution {
     Check,
 }
 
-
 /// A move to be taken for a particular game state.
 #[derive(Eq, PartialEq, Clone, Copy, Debug, Hash)]
 pub enum Move {
@@ -257,7 +256,9 @@ impl<'a> State<'a> {
             // A verifier solution can be provided if a code and verifier have been selected.
             (VerifierSolution(solution), CodeAndVerifier(code, verifier)) => {
                 // Get all codes that correspond to a verifier option giving the provided answer.
-                let new_possible_solutions = self.possible_codes.filter_through_verifier_check(self.game, verifier, code, solution);
+                let new_possible_solutions = self
+                    .possible_codes
+                    .filter_through_verifier_check(self.game, verifier, code, solution);
                 if new_possible_solutions.size() == self.possible_codes.size() {
                     info = Some(AfterMoveInfo::UselessVerifierCheck);
                 } else if new_possible_solutions.is_empty() {
@@ -339,7 +340,12 @@ impl<'a> State<'a> {
     }
 
     /// Perform minmax with alpha-beta pruning.
-    fn alphabeta(self, mut alpha: StateScore, mut beta: StateScore, depth: u32) -> (StateScore, Option<Move>) {
+    fn alphabeta(
+        self,
+        mut alpha: StateScore,
+        mut beta: StateScore,
+        depth: u32,
+    ) -> (StateScore, Option<Move>) {
         // If the game is solved, return the result.
         if self.is_solved() {
             (
@@ -422,8 +428,8 @@ impl<'a> State<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::gametree::GameScore;
     use super::StateScore;
+    use crate::gametree::GameScore;
 
     #[test]
     fn test_game_score() {

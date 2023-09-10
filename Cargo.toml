@@ -15,3 +15,8 @@ thiserror = "1.0"
 
 [dev-dependencies]
 proptest = "1.0.0"
+criterion = "0.3"
+
+[[bench]]
+name = "booklet"
+harness = false

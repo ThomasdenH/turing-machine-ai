@@ -480,7 +480,10 @@ mod tests {
 
     #[test]
     fn test_debug() -> Result<(), Box<dyn Error>> {
-        assert_eq!(format!("{:?}", Code::from_digits(2, 1, 3)?), "△: 2, □: 1, ○: 3");
+        assert_eq!(
+            format!("{:?}", Code::from_digits(2, 1, 3)?),
+            "△: 2, □: 1, ○: 3"
+        );
         Ok(())
     }
 }
