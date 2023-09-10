@@ -27,13 +27,13 @@ impl Debug for Game {
     }
 }
 
-const ASSIGNMENT_BITS_PER_VERIFIER: usize = 16;
+const ASSIGNMENT_BITS_PER_VERIFIER: usize = 9;
 
 #[derive(Eq, PartialEq, Clone, Copy, Hash)]
 pub struct Assignment {
     // Representation: 6*18 bits, for each option.
     // Offset is 16 * verifier index.
-    bitmap: u128,
+    bitmap: u64,
 }
 
 impl Debug for Assignment {
@@ -60,7 +60,7 @@ impl Assignment {
             .map(|i| i.try_into().unwrap())
     }
 
-    pub fn mask_for_verifier_and_response(verifier: usize, response: usize) -> u128 {
+    pub fn mask_for_verifier_and_response(verifier: usize, response: usize) -> u64 {
         1 << (verifier * ASSIGNMENT_BITS_PER_VERIFIER + response)
     }
 
@@ -70,7 +70,7 @@ impl Assignment {
             bitmap: choices
                 .enumerate()
                 .map(|(index, choice)| Self::mask_for_verifier_and_response(index, choice))
-                .fold(0u128, |acc, x| acc | x),
+                .fold(0u64, |acc, x| acc | x),
         }
     }
 }
@@ -369,7 +369,7 @@ impl<'a> PossibleSolutionFilter<'a> {
         verifier: ChosenVerifier,
         code: Code,
         solution: VerifierSolution,
-    ) -> u128 {
+    ) -> u64 {
         let gives_check = solution == VerifierSolution::Check;
         let verifier_start = verifier.0 * ASSIGNMENT_BITS_PER_VERIFIER;
         game.verfier(verifier)
