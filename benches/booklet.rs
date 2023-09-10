@@ -32,7 +32,7 @@ fn bench(c: &mut Criterion) {
 
     for (index, challenge) in booklet.iter().enumerate() {
         let challenge_number = index + 1;
-        if challenge_number == 2 || challenge_number > 5 {
+        if challenge_number == 2 || challenge_number == 6 || challenge_number > 7 {
             continue;
         }
         group.bench_function(format!("challenge {challenge_number}"), |b| {

@@ -30,7 +30,7 @@ use auto_enums::auto_enum;
 use thiserror::Error;
 
 use crate::{
-    code::{Code, Set},
+    code::{Code, Set, self},
     game::{ChosenVerifier, Game, PossibleSolutionFilter},
 };
 
@@ -358,7 +358,25 @@ impl<'a> State<'a> {
                     Ok((_, Some(AfterMoveInfo::UselessVerifierCheck))) => {
                         StateScore::useless_verifier_check()
                     }
-                    Ok((state, None)) => state.alphabeta(alpha, beta).0,
+                    Ok((state, None)) => {
+                        // We know that we need at most as many codes as there
+                        // are codes left. This gives us a minimum score. If it
+                        // is already better than beta, (i.e. less guesses)
+                        // don't bother exploring further. Any branch will be
+                        // pruned.
+                        let codes_left = self.possible_codes.size();
+                        if let Ok(codes_left) = u8::try_from(codes_left) {
+                            let worst_case_score = StateScore::solution(
+                                self.codes_guessed + codes_left - 1,
+                                self.verifiers_checked + codes_left - 1
+                            );
+                            if worst_case_score > beta {
+                                break;
+                            }
+                        }
+
+                        state.alphabeta(alpha, beta).0
+                    }
                 };
                 if score > highest_score {
                     highest_score = score;
