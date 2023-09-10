@@ -371,14 +371,13 @@ impl<'a> PossibleSolutionFilter<'a> {
         solution: VerifierSolution,
     ) -> u64 {
         let gives_check = solution == VerifierSolution::Check;
-        let verifier_start = verifier.0 * ASSIGNMENT_BITS_PER_VERIFIER;
-        game.verfier(verifier)
-            .options()
-            .enumerate()
+        let verifier_start: u64 = 1 << (verifier.0 * ASSIGNMENT_BITS_PER_VERIFIER);
+        std::iter::successors(Some(verifier_start), |prev| Some(prev << 1))
+            .zip(game.verfier(verifier)
+            .options())            
             .map(|(index, option)| (index, option.code_set().contains(code)))
             .filter(|(_index, would_give_solution)| *would_give_solution == gives_check)
-            .map(|(index, _)| 1 << (verifier_start + index))
-            .fold(0, |acc, x| acc | x)
+            .fold(0, |acc, (bit, _)| acc | bit)
     }
 }
 
