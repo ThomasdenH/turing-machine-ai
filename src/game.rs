@@ -346,12 +346,11 @@ impl<'a> PossibleSolutionFilter<'a> {
         // the selected options.
         let matching_options = self.mask_for_verifier_check(game, verifier, code, solution);
 
+        let assignments_and_codes = &self.possible_solutions.assignments_and_codes;
         // Now remove all options that are no longer possible.
-        for (index, bit) in std::iter::successors(Some(1u128), |prev| Some(prev << 1))
-            .take(self.possible_solutions.assignments_and_codes.len())
-            .enumerate()
+        for (bit, (assignment, _code)) in std::iter::successors(Some(1u128), |prev| Some(prev << 1))
+            .zip(assignments_and_codes.iter())
         {
-            let (assignment, _code) = self.possible_solutions.assignments_and_codes[index];
             // Check if it is in!
             if self.containing & bit != 0 {
                 // Does not match the new info

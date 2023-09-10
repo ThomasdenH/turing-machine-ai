@@ -343,8 +343,7 @@ impl<'a> State<'a> {
     fn alphabeta(
         self,
         mut alpha: StateScore,
-        mut beta: StateScore,
-        depth: u32,
+        mut beta: StateScore
     ) -> (StateScore, Option<Move>) {
         // If the game is solved, return the result.
         if self.is_solved() {
@@ -363,7 +362,7 @@ impl<'a> State<'a> {
                     Ok((_, Some(AfterMoveInfo::UselessVerifierCheck))) => {
                         StateScore::useless_verifier_check()
                     }
-                    Ok((state, None)) => state.alphabeta(alpha, beta, depth + 1).0,
+                    Ok((state, None)) => state.alphabeta(alpha, beta).0,
                 };
                 if score > highest_score {
                     highest_score = score;
@@ -387,7 +386,7 @@ impl<'a> State<'a> {
                     Ok((_, Some(AfterMoveInfo::UselessVerifierCheck))) => {
                         StateScore::useless_verifier_check()
                     }
-                    Ok((state, None)) => state.alphabeta(alpha, beta, depth + 1).0,
+                    Ok((state, None)) => state.alphabeta(alpha, beta).0,
                 };
                 if score < lowest_score {
                     lowest_score = score;
@@ -418,7 +417,7 @@ impl<'a> State<'a> {
         let alpha = StateScore::min_score();
         // The worst possible game.
         let beta = StateScore::max_score();
-        if let (score, Some(move_to_do)) = self.alphabeta(alpha, beta, 0) {
+        if let (score, Some(move_to_do)) = self.alphabeta(alpha, beta) {
             (score.codes_and_verifiers_checked().unwrap(), move_to_do)
         } else {
             panic!("No move possible");
