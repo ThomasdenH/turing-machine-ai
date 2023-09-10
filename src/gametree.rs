@@ -30,7 +30,7 @@ use auto_enums::auto_enum;
 use thiserror::Error;
 
 use crate::{
-    code::{Code, Set, self},
+    code::{self, Code, Set},
     game::{ChosenVerifier, Game, PossibleSolutionFilter},
 };
 
@@ -309,25 +309,23 @@ impl<'a> State<'a> {
     #[auto_enum(Iterator)]
     pub fn possible_moves(&self) -> impl Iterator<Item = Move> {
         match self.current_selection {
-            CodeVerifierChoice::CodeAndVerifier(_, _, _) => {
-                [
-                    Move::VerifierSolution(VerifierSolution::Check),
-                    Move::VerifierSolution(VerifierSolution::Cross),
-                ]
-                .iter()
-                .copied()
-            },
+            CodeVerifierChoice::CodeAndVerifier(_, _, _) => [
+                Move::VerifierSolution(VerifierSolution::Check),
+                Move::VerifierSolution(VerifierSolution::Cross),
+            ]
+            .iter()
+            .copied(),
             CodeVerifierChoice::None => Set::all().into_iter().map(Move::ChooseNewCode),
-            CodeVerifierChoice::Code(_, verifiers_used_for_codes) if verifiers_used_for_codes != 0 => {
+            CodeVerifierChoice::Code(_, verifiers_used_for_codes)
+                if verifiers_used_for_codes != 0 =>
+            {
                 self.game
                     .iter_verifier_choices()
                     .map(Move::ChooseVerifier)
                     .chain(Set::all().into_iter().map(Move::ChooseNewCode))
-            },
+            }
             CodeVerifierChoice::Code(_, _) => {
-                self.game
-                    .iter_verifier_choices()
-                    .map(Move::ChooseVerifier)
+                self.game.iter_verifier_choices().map(Move::ChooseVerifier)
             }
         }
     }
@@ -368,7 +366,7 @@ impl<'a> State<'a> {
                         if let Ok(codes_left) = u8::try_from(codes_left) {
                             let worst_case_score = StateScore::solution(
                                 self.codes_guessed + codes_left - 1,
-                                self.verifiers_checked + codes_left - 1
+                                self.verifiers_checked + codes_left - 1,
                             );
                             if worst_case_score > beta {
                                 break;
