@@ -10,7 +10,8 @@ use turing_machine_ai::{
 fn challenge_b52_o00_b() -> Result<(), Box<dyn Error>> {
     let game = Game::new_from_verifier_numbers([12, 16, 18, 19, 21].iter().copied());
     let possible_solutions = game.possible_solutions();
-    let state = State::new(&game, (&possible_solutions).into());
+    let uniquely_satisfied = game.all_unique_satisfied_options();
+    let state = State::new(&game, (&possible_solutions).into(), &uniquely_satisfied);
 
     let (_, move_to_do) = state.find_best_move();
     assert_eq!(move_to_do, Move::ChooseNewCode(Code::from_digits(2, 1, 1)?));
@@ -34,7 +35,8 @@ fn challenge_b52_o00_b() -> Result<(), Box<dyn Error>> {
 fn challenge_c4d_ck4() -> Result<(), Box<dyn Error>> {
     let game = Game::new_from_verifier_numbers([18, 21, 37, 48].iter().copied());
     let possible_solutions = game.possible_solutions();
-    let state = State::new(&game, (&possible_solutions).into());
+    let uniquely_satisfied = game.all_unique_satisfied_options();
+    let state = State::new(&game, (&possible_solutions).into(), &uniquely_satisfied);
 
     let (_, move_to_do) = state.find_best_move();
     assert_eq!(move_to_do, Move::ChooseNewCode(Code::from_digits(2, 1, 1)?));

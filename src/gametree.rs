@@ -30,8 +30,8 @@ use auto_enums::auto_enum;
 use thiserror::Error;
 
 use crate::{
-    code::{Code, Set},
-    game::{ChosenVerifier, Game, PossibleSolutionFilter},
+    code::Code,
+    game::{ChosenVerifier, Game, PossibleSolutionFilter, SatisfiedOptions},
 };
 
 /// A struct representing the current game state.
@@ -40,14 +40,14 @@ use crate::{
 /// solutions for the verifier selection, the currently selected code (if any),
 /// the currently selected verifier (if any), whether a verifier was tested, as
 /// well as how many tests were performed.
-#[derive(Copy, Clone, Debug, Eq, PartialEq, Hash)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct State<'a> {
     game: &'a Game,
     /// All the codes that are still possible solutions.
     possible_codes: PossibleSolutionFilter<'a>,
     current_selection: CodeVerifierChoice,
+    codes_with_unique_assignment: &'a Vec<SatisfiedOptions>,
     codes_guessed_verifiers_checked: StateScore,
-    codes_with_unique_assignment: Set
 }
 
 /// Indicates whether a code and a verifier have been selected.
@@ -57,10 +57,24 @@ enum CodeVerifierChoice {
     None,
     /// A code has been selected, but no verifier yet.
     /// The second argument indicates how many verifiers have been checked for this code.
-    Code(Code, u8),
+    Code(SatisfiedOptions, u8),
     /// Both a code as well as a verifier have been selected.
     /// The second argument indicates how many verifiers have been checked for this code.
-    CodeAndVerifier(Code, u8, ChosenVerifier),
+    CodeAndVerifier(SatisfiedOptions, u8, ChosenVerifier),
+}
+
+impl InternalMove {
+    pub fn choose_code(code: Code, game: &Game) -> Self {
+        Self::ChooseNewCode(SatisfiedOptions::for_code(code, game))
+    }
+
+    fn from_move(move_to_do: Move, game: &Game) -> Self {
+        match move_to_do {
+            Move::ChooseNewCode(code) => Self::choose_code(code, game),
+            Move::ChooseVerifier(verifier) => Self::ChooseVerifier(verifier),
+            Move::VerifierSolution(solution) => Self::VerifierSolution(solution),
+        }
+    }
 }
 
 /// A struct representing a score associated with a game state. The score
@@ -99,10 +113,6 @@ impl StateScore {
         // This is always the better score for the opponent, making the verifier
         // check the worst possible action for the player.
         StateScore(0)
-    }
-
-    fn solution(codes_guessed_verifiers_checked: u16) -> Self {
-        StateScore(codes_guessed_verifiers_checked)
     }
 
     /// This is represented by the worst possible outcome for the player.
@@ -169,6 +179,22 @@ pub enum VerifierSolution {
     Check,
 }
 
+/// A move to be taken for a particular game state. Choosing a code is
+/// represented by its unique assignment.
+#[derive(Eq, PartialEq, Clone, Copy, Debug, Hash)]
+enum InternalMove {
+    /// Choose a new code. This can not be played directly after
+    /// [`Move::ChooseVerifier`] since we expect a verifier response using the
+    /// variant [`Move::VerifierSolution`].
+    ChooseNewCode(SatisfiedOptions),
+    /// Provide a verifier response. This can only be played after
+    /// [`Move::ChooseVerifier`].
+    VerifierSolution(VerifierSolution),
+    /// Choose a verifier. This cannot be played twice in a row, since we expect
+    /// a verifier answer inbetween using [`Move::VerifierSolution`].
+    ChooseVerifier(ChosenVerifier),
+}
+
 /// A move to be taken for a particular game state.
 #[derive(Eq, PartialEq, Clone, Copy, Debug, Hash)]
 pub enum Move {
@@ -182,6 +208,16 @@ pub enum Move {
     /// Choose a verifier. This cannot be played twice in a row, since we expect
     /// a verifier answer inbetween using [`Move::VerifierSolution`].
     ChooseVerifier(ChosenVerifier),
+}
+
+impl Move {
+    fn from_internal_move(value: InternalMove, game: &Game) -> Self {
+        match value {
+            InternalMove::ChooseVerifier(verifier) => Move::ChooseVerifier(verifier),
+            InternalMove::VerifierSolution(solution) => Move::VerifierSolution(solution),
+            InternalMove::ChooseNewCode(satisfied) => Move::ChooseNewCode(satisfied.to_code(game)),
+        }
+    }
 }
 
 /// An error which may be returned by [`State::after_move`].
@@ -201,13 +237,17 @@ pub enum AfterMoveError {
 
 impl<'a> State<'a> {
     #[must_use]
-    pub fn new(game: &'a Game, possible_codes: PossibleSolutionFilter<'a>) -> Self {
+    pub fn new(
+        game: &'a Game,
+        possible_codes: PossibleSolutionFilter<'a>,
+        all_unique_satisfied_options: &'a Vec<SatisfiedOptions>,
+    ) -> Self {
         State {
             game,
             possible_codes,
             current_selection: CodeVerifierChoice::None,
             codes_guessed_verifiers_checked: StateScore(0),
-            codes_with_unique_assignment: game.code_set_with_unique_assignment()
+            codes_with_unique_assignment: all_unique_satisfied_options,
         }
     }
 
@@ -242,11 +282,19 @@ impl<'a> State<'a> {
     ///     invalid. Either the provided game has no solution or one of the
     ///     verifiers was supplied with the wrong response.
     pub fn after_move(
-        mut self,
+        self,
         move_to_do: Move,
     ) -> Result<(State<'a>, Option<AfterMoveInfo>), AfterMoveError> {
+        let move_internal = InternalMove::from_move(move_to_do, self.game);
+        self.after_move_internal(move_internal)
+    }
+
+    fn after_move_internal(
+        mut self,
+        move_to_do: InternalMove,
+    ) -> Result<(State<'a>, Option<AfterMoveInfo>), AfterMoveError> {
         use CodeVerifierChoice::*;
-        use Move::*;
+        use InternalMove::*;
         let mut info: Option<AfterMoveInfo> = Option::None;
         match (move_to_do, self.current_selection) {
             // Choosing a new code can be done if not waiting for a verifier response.
@@ -269,7 +317,7 @@ impl<'a> State<'a> {
                 // Get all codes that correspond to a verifier option giving the provided answer.
                 let new_possible_solutions = self
                     .possible_codes
-                    .filter_through_verifier_check(self.game, verifier, code, solution);
+                    .filter_through_verifier_check(verifier, code, solution);
                 if new_possible_solutions.size() == self.possible_codes.size() {
                     info = Some(AfterMoveInfo::UselessVerifierCheck);
                 } else if new_possible_solutions.is_empty() {
@@ -314,26 +362,36 @@ impl<'a> State<'a> {
     /// - Codes or verifiers may be chosen that do not provide information to
     ///   the player.
     #[auto_enum(Iterator)]
-    pub fn possible_moves(&self) -> impl Iterator<Item = Move> {
+    fn possible_moves(&self) -> impl Iterator<Item = InternalMove> + '_ {
         match self.current_selection {
             CodeVerifierChoice::CodeAndVerifier(_, _, _) => [
-                Move::VerifierSolution(VerifierSolution::Check),
-                Move::VerifierSolution(VerifierSolution::Cross),
+                InternalMove::VerifierSolution(VerifierSolution::Check),
+                InternalMove::VerifierSolution(VerifierSolution::Cross),
             ]
             .iter()
             .copied(),
-            CodeVerifierChoice::None => self.codes_with_unique_assignment.into_iter().map(Move::ChooseNewCode),
+            CodeVerifierChoice::None => self
+                .codes_with_unique_assignment
+                .iter()
+                .copied()
+                .map(InternalMove::ChooseNewCode),
             CodeVerifierChoice::Code(_, verifiers_used_for_codes)
                 if verifiers_used_for_codes != 0 =>
             {
                 self.game
                     .iter_verifier_choices()
-                    .map(Move::ChooseVerifier)
-                    .chain(self.codes_with_unique_assignment.into_iter().map(Move::ChooseNewCode))
+                    .map(InternalMove::ChooseVerifier)
+                    .chain(
+                        self.codes_with_unique_assignment
+                            .iter()
+                            .copied()
+                            .map(InternalMove::ChooseNewCode),
+                    )
             }
-            CodeVerifierChoice::Code(_, _) => {
-                self.game.iter_verifier_choices().map(Move::ChooseVerifier)
-            }
+            CodeVerifierChoice::Code(_, _) => self
+                .game
+                .iter_verifier_choices()
+                .map(InternalMove::ChooseVerifier),
         }
     }
 
@@ -345,32 +403,28 @@ impl<'a> State<'a> {
     }
 
     /// Perform minmax with alpha-beta pruning.
-    fn alphabeta(self, mut alpha: StateScore, mut beta: StateScore, moves_done: &mut Vec<Move>) -> (StateScore, Option<Move>) {
+    fn alphabeta(
+        self,
+        mut alpha: StateScore,
+        mut beta: StateScore,
+    ) -> (StateScore, Option<InternalMove>) {
         // Beta is the highest score that the player can definitely get.
         // Alpha is the lowest score that the player gets if unlucky.
         // If the game is solved, return the result.
         if self.is_solved() {
-            (
-                self.codes_guessed_verifiers_checked,
-                None,
-            )
+            (self.codes_guessed_verifiers_checked, None)
         } else if self.is_maximizing_score() {
             let mut highest_score = StateScore::min_score();
             let mut best_move = None;
             for move_to_do in self.possible_moves() {
-                let next_node = self.after_move(move_to_do);
+                let next_node = self.after_move_internal(move_to_do);
                 let score = match next_node {
                     Err(AfterMoveError::NoCodesLeft) => StateScore::no_solution(),
                     Err(AfterMoveError::InvalidMoveError) => panic!("invalid move!"),
                     Ok((_, Some(AfterMoveInfo::UselessVerifierCheck))) => {
                         StateScore::useless_verifier_check()
                     }
-                    Ok((state, None)) => {
-                        moves_done.push(move_to_do);
-                        let next = state.alphabeta(alpha, beta, moves_done).0;
-                        moves_done.pop();
-                        next
-                    }
+                    Ok((state, None)) => state.alphabeta(alpha, beta).0,
                 };
                 if score > highest_score {
                     highest_score = score;
@@ -390,19 +444,14 @@ impl<'a> State<'a> {
         } else {
             let mut lowest_score = StateScore::max_score();
             for move_to_do in self.possible_moves() {
-                let next_node = self.after_move(move_to_do);
+                let next_node = self.after_move_internal(move_to_do);
                 let score = match next_node {
                     Err(AfterMoveError::NoCodesLeft) => StateScore::no_solution(),
                     Err(AfterMoveError::InvalidMoveError) => panic!("invalid move"),
                     Ok((_, Some(AfterMoveInfo::UselessVerifierCheck))) => {
                         StateScore::useless_verifier_check()
                     }
-                    Ok((state, None)) => {
-                        moves_done.push(move_to_do);
-                        let next = state.alphabeta(alpha, beta, moves_done).0;
-                        moves_done.pop();
-                        next
-                    }
+                    Ok((state, None)) => state.alphabeta(alpha, beta).0,
                 };
                 if score < lowest_score {
                     lowest_score = score;
@@ -433,8 +482,11 @@ impl<'a> State<'a> {
         let alpha = StateScore::min_score();
         // The worst possible game.
         let beta = StateScore::max_score();
-        if let (score, Some(move_to_do)) = self.alphabeta(alpha, beta, &mut Vec::new()) {
-            (score.codes_and_verifiers_checked().unwrap(), move_to_do)
+        if let (score, Some(move_to_do)) = self.alphabeta(alpha, beta) {
+            (
+                score.codes_and_verifiers_checked().unwrap(),
+                Move::from_internal_move(move_to_do, self.game),
+            )
         } else {
             panic!("No move possible");
         }

@@ -4,7 +4,7 @@
 //! logic for checking codes and verifiers.
 
 use std::{
-    collections::{self, HashSet},
+    collections::HashSet,
     fmt::Debug,
     iter,
 };
@@ -32,6 +32,52 @@ impl Debug for Game {
 }
 
 const ASSIGNMENT_BITS_PER_VERIFIER: usize = 9;
+
+/// A struct that represents which options are satisfied for a particular code.
+/// This may include multiple options per verifier;
+#[derive(Eq, PartialEq, Debug, Hash, Copy, Clone)]
+pub struct SatisfiedOptions(u64);
+
+impl SatisfiedOptions {
+    pub fn to_code(self, game: &Game) -> Code {
+        Set::all()
+            .into_iter()
+            .find(|code| SatisfiedOptions::for_code(*code, game) == self)
+            .expect("Invalid satisfied options")
+    }
+
+    pub fn for_code(code: Code, game: &Game) -> Self {
+        let mut all_assignments_for_code = 0;
+        for (verifier, start_bit_for_verifier) in game
+            .verifiers
+            .iter()
+            .zip(iter::successors(Some(1), |a| {
+                Some(a << ASSIGNMENT_BITS_PER_VERIFIER)
+            }))
+        {
+            for (option, bit) in verifier
+                .options()
+                .zip(iter::successors(Some(start_bit_for_verifier), |a| {
+                    Some(a << 1)
+                }))
+            {
+                if option.code_set().contains(code) {
+                    all_assignments_for_code |= bit;
+                }
+            }
+        }
+        Self(all_assignments_for_code)
+    }
+
+    pub fn mask_for_verifier_response(self, verifier: ChosenVerifier, solution: VerifierSolution) -> u64 {
+        let mut mask = self.0;
+        if solution == VerifierSolution::Cross {
+            mask = !mask;
+        }
+        mask &= 0b1_1111_1111 << (ASSIGNMENT_BITS_PER_VERIFIER * verifier.0);
+        mask
+    }
+}
 
 #[derive(Eq, PartialEq, Clone, Copy, Hash)]
 pub struct Assignment {
@@ -246,32 +292,27 @@ impl Game {
         }
     }
 
-    pub fn code_set_with_unique_assignment(&self) -> Set {
-        let mut codes = Set::empty();
-        let mut unique_assignments: HashSet<u128> = HashSet::new();
-        for code in Set::all().into_iter() {
-            let mut all_assignments_for_code = 0;
-            for (verifier, start_bit_for_verifier) in self
-                .verifiers
-                .iter()
-                .zip(iter::successors(Some(1u128), |a| {
-                    Some(a << ASSIGNMENT_BITS_PER_VERIFIER)
-                }))
-            {
-                for (option, bit) in verifier
-                    .options()
-                    .zip(iter::successors(Some(start_bit_for_verifier), |a| {
-                        Some(a << 1)
-                    }))
-                {
-                    if option.code_set().contains(code) {
-                        all_assignments_for_code |= bit;
-                    }
+    /// Get all unique ways in which codes can satisfy the verifiers.
+    pub fn all_unique_satisfied_options(&self) -> Vec<SatisfiedOptions> {
+        let mut v = Vec::new();
+        for assignment in Set::all()
+            .into_iter()
+            .map(|code| SatisfiedOptions::for_code(code, self)) {
+                if !v.contains(&assignment) {
+                    v.push(assignment);
                 }
             }
-            if !unique_assignments.contains(&all_assignments_for_code) {
+        v
+    }
+
+    pub fn code_set_with_unique_assignment(&self) -> Set {
+        let mut codes = Set::empty();
+        let mut unique_assignments: HashSet<SatisfiedOptions> = HashSet::new();
+        for code in Set::all().into_iter() {
+            let satisfied_for_code = SatisfiedOptions::for_code(code, self);
+            if !unique_assignments.contains(&satisfied_for_code) {
                 codes.insert(code);
-                unique_assignments.insert(all_assignments_for_code);
+                unique_assignments.insert(satisfied_for_code);
             }
         }
         codes
@@ -349,9 +390,8 @@ impl<'a> PossibleSolutionFilter<'a> {
 
     pub fn filter_through_verifier_check(
         mut self,
-        game: &Game,
         verifier: ChosenVerifier,
-        code: Code,
+        satisfied_for_code: SatisfiedOptions,
         solution: VerifierSolution,
     ) -> Self {
         // If the verifier gives a check, the solution must give a check at one
@@ -379,7 +419,7 @@ impl<'a> PossibleSolutionFilter<'a> {
         // check, select all options that have a check. If we have no check,
         // select all options that have no check. The solution must have one of
         // the selected options.
-        let matching_options = self.mask_for_verifier_check(game, verifier, code, solution);
+        let matching_options = satisfied_for_code.mask_for_verifier_response(verifier, solution);
 
         let assignments_and_codes = &self.possible_solutions.assignments_and_codes;
         // Now remove all options that are no longer possible.
@@ -391,22 +431,6 @@ impl<'a> PossibleSolutionFilter<'a> {
             }
         }
         self
-    }
-
-    fn mask_for_verifier_check(
-        self,
-        game: &Game,
-        verifier: ChosenVerifier,
-        code: Code,
-        solution: VerifierSolution,
-    ) -> u64 {
-        let gives_check = solution == VerifierSolution::Check;
-        let verifier_start: u64 = 1 << (verifier.0 * ASSIGNMENT_BITS_PER_VERIFIER);
-        std::iter::successors(Some(verifier_start), |prev| Some(prev << 1))
-            .zip(game.verfier(verifier).options())
-            .map(|(index, option)| (index, option.code_set().contains(code)))
-            .filter(|(_index, would_give_solution)| *would_give_solution == gives_check)
-            .fold(0, |acc, (bit, _)| acc | bit)
     }
 }
 
@@ -423,7 +447,7 @@ mod tests {
 
     use crate::{
         code::{Code, Set},
-        game::ChosenVerifier,
+        game::{ChosenVerifier, SatisfiedOptions},
         gametree::VerifierSolution,
     };
 
@@ -472,13 +496,6 @@ mod tests {
             .collect::<Set>()
         );
 
-        let verifier = ChosenVerifier(3);
-        let code = Code::from_digits(1, 2, 3)?;
-        let solution = VerifierSolution::Check;
-        println!(
-            "{:0128b}",
-            possible_solutions_filter.mask_for_verifier_check(&game, verifier, code, solution)
-        );
         for assignment in possible_solutions_filter
             .possible_codes_with_index()
             .map(|(_, assignment, _)| assignment)
@@ -487,16 +504,11 @@ mod tests {
         }
 
         let possible_solutions_filter = possible_solutions_filter.filter_through_verifier_check(
-            &game,
             ChosenVerifier(3),
-            Code::from_digits(1, 2, 3)?,
+            SatisfiedOptions::for_code(Code::from_digits(1, 2, 3)?, &game),
             VerifierSolution::Check,
         );
 
-        println!(
-            "{:0128b}",
-            possible_solutions_filter.mask_for_verifier_check(&game, verifier, code, solution)
-        );
         for assignment in possible_solutions_filter
             .possible_codes_with_index()
             .map(|(_, assignment, _)| assignment)

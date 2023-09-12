@@ -8,8 +8,9 @@ use turing_machine_ai::gametree::{
 fn main() {
     let game = Game::new_from_verifier_numbers([3, 7, 10, 14].iter().copied());
     let possible_solutions = game.possible_solutions();
+    let uniquely_satisfied = game.all_unique_satisfied_options();
 
-    let mut state = State::new(&game, (&possible_solutions).into());
+    let mut state = State::new(&game, (&possible_solutions).into(), &uniquely_satisfied);
     while !state.is_solved() {
         println!(
             "There are still {} possible codes.",
