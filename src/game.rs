@@ -3,7 +3,11 @@
 //! In other words, deductions based on verifiers are performed here, but no
 //! logic for checking codes and verifiers.
 
-use std::fmt::Debug;
+use std::{
+    collections::{self, HashSet},
+    fmt::Debug,
+    iter,
+};
 
 use crate::{
     code::{Code, Set},
@@ -241,6 +245,37 @@ impl Game {
             assignments_and_codes,
         }
     }
+
+    pub fn code_set_with_unique_assignment(&self) -> Set {
+        let mut codes = Set::empty();
+        let mut unique_assignments: HashSet<u128> = HashSet::new();
+        for code in Set::all().into_iter() {
+            let mut all_assignments_for_code = 0;
+            for (verifier, start_bit_for_verifier) in self
+                .verifiers
+                .iter()
+                .zip(iter::successors(Some(1u128), |a| {
+                    Some(a << ASSIGNMENT_BITS_PER_VERIFIER)
+                }))
+            {
+                for (option, bit) in verifier
+                    .options()
+                    .zip(iter::successors(Some(start_bit_for_verifier), |a| {
+                        Some(a << 1)
+                    }))
+                {
+                    if option.code_set().contains(code) {
+                        all_assignments_for_code |= bit;
+                    }
+                }
+            }
+            if !unique_assignments.contains(&all_assignments_for_code) {
+                codes.insert(code);
+                unique_assignments.insert(all_assignments_for_code);
+            }
+        }
+        codes
+    }
 }
 
 #[derive(Clone, Eq, PartialEq, Debug, Hash)]
@@ -368,8 +403,7 @@ impl<'a> PossibleSolutionFilter<'a> {
         let gives_check = solution == VerifierSolution::Check;
         let verifier_start: u64 = 1 << (verifier.0 * ASSIGNMENT_BITS_PER_VERIFIER);
         std::iter::successors(Some(verifier_start), |prev| Some(prev << 1))
-            .zip(game.verfier(verifier)
-            .options())            
+            .zip(game.verfier(verifier).options())
             .map(|(index, option)| (index, option.code_set().contains(code)))
             .filter(|(_index, would_give_solution)| *would_give_solution == gives_check)
             .fold(0, |acc, (bit, _)| acc | bit)

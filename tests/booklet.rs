@@ -76,17 +76,14 @@ fn test_02() -> Result<(), Box<dyn Error>> {
     assert_eq!(next_move, Move::ChooseVerifier(1.into()));
     let (state, _) = state.after_move(next_move)?;
     let (state, _) = state.after_move(Move::VerifierSolution(Check))?;
-    dbg!(state.possible_solutions());
 
     let (_, next_move) = state.find_best_move();
     assert_eq!(next_move, Move::ChooseVerifier(3.into()));
     let (state, _) = state.after_move(next_move)?;
     let (state, _) = state.after_move(Move::VerifierSolution(Cross))?;
-    dbg!(state.possible_solutions());
 
     assert!(state.is_solved());
     assert_eq!(state.solution(), Some(Code::from_digits(4, 3, 5)?));
-
     Ok(())
 }
 

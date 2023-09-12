@@ -46,7 +46,8 @@ pub struct State<'a> {
     /// All the codes that are still possible solutions.
     possible_codes: PossibleSolutionFilter<'a>,
     current_selection: CodeVerifierChoice,
-    codes_guessed_verifiers_checked: u16
+    codes_guessed_verifiers_checked: StateScore,
+    codes_with_unique_assignment: Set
 }
 
 /// Indicates whether a code and a verifier have been selected.
@@ -67,7 +68,7 @@ enum CodeVerifierChoice {
 /// the highest whereas a game without a solution is the lowest possible score.
 ///
 /// Internally, the score is inverted so that a perfect game is represented by a 0.
-#[derive(Copy, Clone, Eq, PartialEq)]
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
 struct StateScore(u16);
 
 impl Debug for StateScore {
@@ -81,7 +82,7 @@ impl Debug for StateScore {
 }
 
 /// This represents the current "score" associated with the game state.
-#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+#[derive(Copy, Clone, Eq, PartialEq, Debug, Hash)]
 pub struct GameScore {
     pub codes_guessed: u8,
     pub verifiers_checked: u8,
@@ -131,6 +132,13 @@ impl StateScore {
 
     fn max_score() -> Self {
         StateScore(u16::MIN)
+    }
+
+    fn add_verifier_check(&mut self) {
+        self.0 += 1;
+    }
+    fn add_code_check(&mut self) {
+        self.0 += 1 << 8;
     }
 }
 
@@ -198,7 +206,8 @@ impl<'a> State<'a> {
             game,
             possible_codes,
             current_selection: CodeVerifierChoice::None,
-            codes_guessed_verifiers_checked: 0
+            codes_guessed_verifiers_checked: StateScore(0),
+            codes_with_unique_assignment: game.code_set_with_unique_assignment()
         }
     }
 
@@ -243,14 +252,14 @@ impl<'a> State<'a> {
             // Choosing a new code can be done if not waiting for a verifier response.
             (ChooseNewCode(code), Code(_, _) | None) => {
                 self.current_selection = Code(code, 0);
-                self.codes_guessed_verifiers_checked += 1 << 8;
+                self.codes_guessed_verifiers_checked.add_code_check();
             }
             // Choosing a new verifier can be done if not waiting for a verifier response,
             // given a code was chosen.
             (ChooseVerifier(verifier), Code(code, verifiers_checked_for_this_code)) => {
                 self.current_selection =
                     CodeAndVerifier(code, verifiers_checked_for_this_code + 1, verifier);
-                self.codes_guessed_verifiers_checked += 1;
+                self.codes_guessed_verifiers_checked.add_verifier_check();
             }
             // A verifier solution can be provided if a code and verifier have been selected.
             (
@@ -313,14 +322,14 @@ impl<'a> State<'a> {
             ]
             .iter()
             .copied(),
-            CodeVerifierChoice::None => Set::all().into_iter().map(Move::ChooseNewCode),
+            CodeVerifierChoice::None => self.codes_with_unique_assignment.into_iter().map(Move::ChooseNewCode),
             CodeVerifierChoice::Code(_, verifiers_used_for_codes)
                 if verifiers_used_for_codes != 0 =>
             {
                 self.game
                     .iter_verifier_choices()
                     .map(Move::ChooseVerifier)
-                    .chain(Set::all().into_iter().map(Move::ChooseNewCode))
+                    .chain(self.codes_with_unique_assignment.into_iter().map(Move::ChooseNewCode))
             }
             CodeVerifierChoice::Code(_, _) => {
                 self.game.iter_verifier_choices().map(Move::ChooseVerifier)
@@ -336,11 +345,13 @@ impl<'a> State<'a> {
     }
 
     /// Perform minmax with alpha-beta pruning.
-    fn alphabeta(self, mut alpha: StateScore, mut beta: StateScore) -> (StateScore, Option<Move>) {
+    fn alphabeta(self, mut alpha: StateScore, mut beta: StateScore, moves_done: &mut Vec<Move>) -> (StateScore, Option<Move>) {
+        // Beta is the highest score that the player can definitely get.
+        // Alpha is the lowest score that the player gets if unlucky.
         // If the game is solved, return the result.
         if self.is_solved() {
             (
-                StateScore::solution(self.codes_guessed_verifiers_checked),
+                self.codes_guessed_verifiers_checked,
                 None,
             )
         } else if self.is_maximizing_score() {
@@ -354,16 +365,24 @@ impl<'a> State<'a> {
                     Ok((_, Some(AfterMoveInfo::UselessVerifierCheck))) => {
                         StateScore::useless_verifier_check()
                     }
-                    Ok((state, None)) => state.alphabeta(alpha, beta).0,
+                    Ok((state, None)) => {
+                        moves_done.push(move_to_do);
+                        let next = state.alphabeta(alpha, beta, moves_done).0;
+                        moves_done.pop();
+                        next
+                    }
                 };
                 if score > highest_score {
                     highest_score = score;
                     best_move = Some(move_to_do);
                 }
                 if score > beta {
+                    // The worst case is definitely not this branch.
+                    // To find the strategy that maximizes our minimum score, explore another branch.
                     break;
                 }
                 if score > alpha {
+                    // We have found a way to increase our minimum score.
                     alpha = score;
                 }
             }
@@ -378,7 +397,12 @@ impl<'a> State<'a> {
                     Ok((_, Some(AfterMoveInfo::UselessVerifierCheck))) => {
                         StateScore::useless_verifier_check()
                     }
-                    Ok((state, None)) => state.alphabeta(alpha, beta).0,
+                    Ok((state, None)) => {
+                        moves_done.push(move_to_do);
+                        let next = state.alphabeta(alpha, beta, moves_done).0;
+                        moves_done.pop();
+                        next
+                    }
                 };
                 if score < lowest_score {
                     lowest_score = score;
@@ -409,7 +433,7 @@ impl<'a> State<'a> {
         let alpha = StateScore::min_score();
         // The worst possible game.
         let beta = StateScore::max_score();
-        if let (score, Some(move_to_do)) = self.alphabeta(alpha, beta) {
+        if let (score, Some(move_to_do)) = self.alphabeta(alpha, beta, &mut Vec::new()) {
             (score.codes_and_verifiers_checked().unwrap(), move_to_do)
         } else {
             panic!("No move possible");
